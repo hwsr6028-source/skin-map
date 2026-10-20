@@ -3,3 +3,28 @@
 
 /* CMS blog images */
 .article .post-image { display:block; width:100%; max-width:100%; height:auto; object-fit:contain; border-radius:14px; margin:20px 0; }
+
+
+/* SKINMAP editorial blog cards and archive */
+.blog-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.blog-card{display:flex;flex-direction:column;overflow:hidden;min-width:0;border:1px solid var(--line);border-radius:13px;background:#fff;transition:box-shadow .2s,transform .2s}
+.blog-card:hover{transform:translateY(-3px);box-shadow:0 12px 30px #304e3d16}
+.blog-card-media{display:flex;align-items:center;justify-content:center;aspect-ratio:16/10;overflow:hidden;background:#e7eee6}
+.blog-card-media img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s}
+.blog-card:hover img{transform:scale(1.035)}
+.blog-card-placeholder{background:linear-gradient(135deg,#e8f3e5,#c8dcd1);color:#668576;font-size:20px;font-weight:700;letter-spacing:4px}
+.blog-card-copy{display:flex;flex-direction:column;flex:1;padding:22px;gap:10px}
+.blog-card-meta{font-size:11px;color:#73907f;font-weight:700}
+.blog-card-copy strong{font-size:19px;line-height:1.5;letter-spacing:-.6px}
+.blog-card-description{font-size:12px;color:#78857b;line-height:1.7;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.blog-card-more{margin-top:auto;padding-top:14px;font-size:12px;font-weight:700;color:#4a7860}
+.blog-filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:30px}
+.blog-filters a{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:30px;padding:11px 16px;font-size:13px;font-weight:600;color:#63736a}
+.blog-filters a.active{color:#fff;background:#345f50;border-color:#345f50}
+.blog-filters span{font-size:11px;opacity:.7}
+.blog-pagination{display:flex;justify-content:center;gap:9px;margin:42px auto 0}
+.blog-pagination a{display:grid;place-items:center;min-width:42px;height:42px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+.blog-pagination a.active{background:#345f50;border-color:#345f50;color:#fff}
+.blog-all-link{font-size:13px;font-weight:700;color:#345f50;white-space:nowrap}
+@media(max-width:850px){.blog-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}}
+@media(max-width:540px){.blog-cards{grid-template-columns:1fr}.blog-card-copy{padding:18px}.blog-card-copy strong{font-size:18px}.blog-filters{gap:7px}.blog-filters a{font-size:12px;padding:9px 12px}.section-head{gap:12px;flex-wrap:wrap}.nav nav{gap:9px}.nav nav a{font-size:10px}}
