@@ -31,7 +31,7 @@ for r in published:
  body=f'''<section class="article-top"><div class="shell"><div class="crumb">{breadcrumb}</div><span class="kicker">{'TREATMENT GUIDE' if is_proc else 'LOCAL GUIDE'}</span><h1>{esc(kw)}<br><em>선택 가이드</em></h1><p>{esc(r['intro'])}</p></div></section><section class="shell article-grid"><article class="article"><span class="kicker">01 / INTRODUCTION</span><h2>{esc(kw)} 알아보기</h2><p>{esc(r['intro'])}</p><span class="kicker">02 / LOCAL INFORMATION</span><h2>{esc(r['region'])} 지역 체크포인트</h2><p>{esc(r['local_info'])}</p><span class="kicker">03 / THINGS TO KNOW</span><h2>상담 전에 알아둘 점</h2><p>{esc(r['detail'])}</p><span class="kicker">04 / SAFETY FIRST</span><h2>주의사항</h2><p>{esc(r['considerations'])}</p><div class="disclaimer">이 페이지는 교육 목적의 기초 안내 자료입니다. 개인별 적합성과 위험성은 의료진의 진료로 확인해야 합니다. 공개 발행 전 지역 고유정보, 원자료 출처 및 의료 전문가 검토를 보강하세요.</div></article><aside><div class="sidebar"><span class="kicker">EXPLORE MORE</span><h3>함께 살펴보기</h3>{''.join('<a href="'+url(x)+'">'+esc(x['region']+(x['procedure'] if x['type']=='procedure' else '피부과'))+' <span>↗</span></a>' for x in related)}<a href="/">전체 가이드 <span>↗</span></a></div></aside></section>'''
  save(path,frame(r['title'],r['description'],path,body,index=False)) # draft content held noindex until verified
 
-# CMS markdown articles, safely rendered as plain markdown blocks.
+# CMS markdown articles.
 import json, re
 def md_inline(line):
     safe=esc(line)
@@ -48,13 +48,7 @@ def markdown_to_html(source):
     for line in str(source or '').splitlines():
         line=line.strip()
         if not line: flush();continue
-        match=re.match(r'^(#{1,3})\s+(.+) Remove only after substantial editorial review.
-(OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
-now=datetime.date.today().isoformat()
-sitemap_urls=['/','/blog/']+['/blog/'+x['slug']+'/' for x in posts if x.get('seo_approved',False)]
-(OUT/'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join('<url><loc>'+DOMAIN+p+'</loc><lastmod>'+now+'</lastmod></url>\n' for p in sitemap_urls)+'</urlset>',encoding='utf8')
-print('Built',len(published)+1,'pages ->',OUT)
-,line)
+        match=re.match(r'^(#{1,3})\s+(.+)$',line)
         if match:
             flush();level=len(match.group(1))+1
             result.append('<h'+str(level)+'>'+md_inline(match.group(2))+'</h'+str(level)+'>')
@@ -85,14 +79,12 @@ for article in posts:
     save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False))))
 blog_listing='<section class="article-top"><div class="shell"><span class="kicker">SKINMAP JOURNAL</span><h1>피부과·시술 정보 블로그</h1><p>지역별 피부 관리와 시술 정보를 살펴보세요.</p></div></section><section class="section shell"><div class="cards">'+''.join('<a class="tile" href="/blog/'+esc(x['slug'])+'/"><span class="eyebrow">'+esc(x.get('region',''))+' · '+esc(x.get('procedure',''))+'</span><strong>'+esc(x.get('title',''))+'</strong><small>글 읽기 ↗</small></a>' for x in posts)+'</div></section>'
 save('/blog/',frame('피부과·시술 블로그 | 스킨맵','지역별 피부과 및 시술 정보 모음','/blog/',blog_listing))
-# Add the blog entry point to the existing home page without disturbing other sections.
 home_index=OUT/'index.html'
 home_html=home_index.read_text(encoding='utf8')
 home_html=home_html.replace('</main>','<section class="section shell"><div class="section-head"><div><span class="kicker">03 / JOURNAL</span><h2>피부과·시술 블로그</h2><p>지역과 시술에 대한 새로운 정보를 확인해 보세요.</p></div></div><a class="cta" href="/blog/">블로그 글 보기 ↗</a></section></main>')
 home_index.write_text(home_html,encoding='utf8')
-
-# Explicit noindex for all generated draft examples. Remove only after substantial editorial review.
 (OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
 now=datetime.date.today().isoformat()
-(OUT/'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n<url><loc>'+DOMAIN+'/</loc><lastmod>'+now+'</lastmod></url>\n</urlset>',encoding='utf8')
-print('Built',len(published)+1,'pages ->',OUT)
+sitemap_urls=['/','/blog/']+['/blog/'+x['slug']+'/' for x in posts if x.get('seo_approved',False)]
+(OUT/'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join('<url><loc>'+DOMAIN+p+'</loc><lastmod>'+now+'</lastmod></url>\n' for p in sitemap_urls)+'</urlset>',encoding='utf8')
+print('Built',len(published)+len(posts)+2,'pages ->',OUT)
