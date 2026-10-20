@@ -24,7 +24,7 @@ regions=[r for r in published if r['type']=='region']
 procedures=[r for r in published if r['type']=='procedure']
 hero='''<section class="hero"><div class="shell hero-inner"><div><div class="micro">LOCAL SKINCARE DIRECTORY <span>•</span> REGION × TREATMENT</div><h1>내 피부에 맞는 정보,<br><em>내 동네</em>에서 시작하세요.</h1><p>지역별 피부과 선택 기준부터 주요 리프팅 시술의 특징까지.<br>처음 알아볼 때 필요한 정보를 하나씩 정리했습니다.</p><a href="#regions" class="cta">지역별 정보 둘러보기 <span>↗</span></a><div class="hero-stat"><span>03 <small>지역 가이드</small></span><span>03 <small>시술 가이드</small></span><span>100% <small>정보 탐색</small></span></div></div><div class="orb-wrap" aria-hidden="true"><div class="orb"></div><div class="orb-label one">SKIN HEALTH <b>01</b></div><div class="orb-label two">DISCOVER<br>YOUR ROUTINE</div></div></div></section>'''
 home=hero+'<section class="section shell" id="regions"><div class="section-head"><div><span class="kicker">01 / LOCATION</span><h2>지역으로 찾아보기</h2><p>지역별로 확인할 선택 기준과 접근성 정보를 살펴보세요.</p></div><span class="count">'+str(len(regions))+' LOCATIONS</span></div><div class="cards">'+''.join(map(link,regions))+'</div></section>'+'<section class="section tinted" id="procedures"><div class="shell"><div class="section-head"><div><span class="kicker">02 / PROCEDURE</span><h2>시술로 찾아보기</h2><p>시술 원리와 상담 전 확인할 사항을 정리했습니다.</p></div><span class="count">'+str(len(procedures))+' GUIDES</span></div><div class="cards">'+''.join(map(link,procedures))+'</div></div></section>'+'<section class="shell note"><span class="kicker">OUR PRINCIPLE</span><h2>검색을 넘어, 도움이 되는 정보로.</h2><p>지역명만 바꾼 반복 페이지 대신 각 지역 및 시술의 고유한 정보를 보강하여 발행합니다. 게시된 내용은 의료 전문가의 진단을 대신하지 않습니다.</p></section>'
-save('/',frame('정보세상 | 지역별 피부과·시술 정보', '강남·노원·동탄 피부과 선택 가이드와 울쎄라·써마지·볼뉴머 등 시술 정보를 확인하세요.','/',home))
+save('/',frame('정보세상 | 병원·법률·인테리어·이사 생활정보', '건강, 법률, 인테리어, 이사, 부동산, 금융, IT, 교육, 여행까지 분야별 생활 정보와 가이드를 확인하세요.','/',home))
 for r in published:
  path=url(r); is_proc=r['type']=='procedure'; kw=r['region']+(r['procedure'] if is_proc else '피부과'); related=[x for x in published if x!=r and (x['region']==r['region'] or (is_proc and x['type']=='procedure'))][:4]
  breadcrumb='<a href="/">홈</a> <span> / </span> '+('<a href="/region/'+r['region_slug']+'/">'+esc(r['region'])+'</a> <span> / </span> ' if is_proc and any(x['type']=='region' and x['region_slug']==r['region_slug'] for x in regions) else '')+esc(kw)
@@ -124,7 +124,7 @@ def category_nav(active):
     links=[('<a class="'+('active' if not active else '')+'" href="/blog/">전체 <span>'+str(all_count)+'</span></a>')]
     for key,label in CATEGORIES.items():
         count=sum(category_of(p)==key for p in posts)
-        if count:
+        if key not in ('dermatology','lifting','skinbooster','other') or count:
             links.append('<a class="'+('active' if key==active else '')+'" href="'+listing_path(key,1)+'">'+esc(label)+' <span>'+str(count)+'</span></a>')
     return '<nav class="blog-filters" aria-label="블로그 카테고리">'+''.join(links)+'</nav>'
 def render_listing(category=''):
@@ -153,13 +153,15 @@ featured_cards=''.join(blog_card(x) for x in featured)
 if not featured_cards:
     featured_cards='<p>첫 번째 블로그 글을 기다리고 있습니다.</p>'
 blog_section='<section class="section shell" id="blog"><div class="section-head"><div><span class="kicker">01 / BLOG</span><h2>최신 블로그 글</h2><p>일상에 필요한 다양한 분야의 새로운 정보를 확인해 보세요.</p></div><a class="blog-all-link" href="/blog/">전체 글 보기 ↗</a></div><div class="blog-cards">'+featured_cards+'</div></section>'
-home_html=home_html.replace('<section class="section shell" id="regions">',blog_section+'<section class="section shell" id="regions">',1)
+category_tiles=''.join('<a href="/blog/category/'+key+'/" class="topic-tile"><span class="topic-symbol">'+{'health':'✚','law':'⚖','interior':'▧','moving':'▣','realestate':'⌂','finance':'₩','tech':'⌘','education':'✎','travel':'✈','general':'···'}[key]+'</span><strong>'+esc(label)+'</strong><small>정보 보기 →</small></a>' for key,label in CATEGORIES.items() if key not in ('dermatology','lifting','skinbooster','other'))
+topics_section='<section class="section shell" id="topics"><div class="section-head"><div><span class="kicker">DISCOVER TOPICS</span><h2>분야별 정보 둘러보기</h2><p>관심 있는 주제를 선택해 필요한 정보를 찾아보세요.</p></div></div><div class="topic-grid">'+category_tiles+'</div></section>'
+home_html=home_html.replace('<section class="section shell" id="regions">',topics_section+blog_section+'<section class="section shell" id="regions">',1)
 # The original region/procedure sample pages remain reachable at their old URLs but are no longer featured on the front page.
 home_html=re.sub(r'<section class="section shell" id="regions">.*?<section class="shell note">.*?</section>', '', home_html, flags=re.S)
 home_html=home_html.replace('LOCAL SKINCARE DIRECTORY','INFORMATION FOR EVERYDAY LIFE').replace('REGION × TREATMENT','ALL TOPICS').replace('내 피부에 맞는 정보,<br><em>내 동네</em>에서 시작하세요.','궁금한 모든 정보,<br><em>정보세상</em>에서 찾아보세요.').replace('지역별 피부과 선택 기준부터 주요 리프팅 시술의 특징까지.<br>처음 알아볼 때 필요한 정보를 하나씩 정리했습니다.','병원·건강, 법률, 인테리어, 이사·생활까지.<br>일상에 필요한 정보를 쉽고 꼼꼼하게 정리합니다.').replace('지역별 정보 둘러보기','최신 정보 둘러보기').replace('href="#regions"','href="#blog"')
 home_html=re.sub(r'<div class="hero-stat">.*?</div>', '<div class="hero-stat"><span>HEALTH <small>병원·건강</small></span><span>LAW <small>법률 정보</small></span><span>LIFE <small>일상 가이드</small></span></div>', home_html, count=1, flags=re.S)
 home_html=home_html.replace('SKIN HEALTH','USEFUL INFO').replace('DISCOVER<br>YOUR ROUTINE','EXPLORE<br>MORE')
-home_html=home_html.replace('스킨맵 | 지역별 피부과·시술 정보','정보세상 | 생활·전문 지식 정보')
+home_html=home_html.replace('정보세상 | 지역별 피부과·시술 정보','정보세상 | 생활·전문 지식 정보')
 
 home_index.write_text(home_html,encoding='utf8')
 (OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
