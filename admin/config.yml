@@ -1,0 +1,35 @@
+backend:
+  name: github
+  repo: hwsr6028-source/skin-map
+  branch: main
+
+locale: ko
+site_url: https://skin-map.pages.dev
+display_url: https://skin-map.pages.dev
+logo_url: https://skin-map.pages.dev/favicon.ico
+
+media_folder: assets/uploads
+public_folder: /assets/uploads
+
+collections:
+  - name: articles
+    label: SEO 블로그 글
+    label_singular: 블로그 글
+    folder: content/posts
+    create: true
+    delete: true
+    format: json
+    extension: json
+    slug: "{{slug}}"
+    identifier_field: title
+    summary: "{{title}} · {{region}}"
+    fields:
+      - { name: title, label: 글 제목, widget: string, hint: "예) 강남울쎄라 | 강남역 울쎄라 선택 가이드" }
+      - { name: slug, label: URL 주소 영문, widget: string, hint: "예) gangnam-ulthera-guide (영어 소문자와 -만 사용)" }
+      - { name: region, label: 지역, widget: string, required: false, hint: "예) 강남" }
+      - { name: procedure, label: 시술명, widget: string, required: false, hint: "예) 울쎄라" }
+      - { name: description, label: SEO 설명, widget: text, hint: "150자 내외의 검색 결과 요약" }
+      - { name: date, label: 작성일, widget: datetime, format: "YYYY-MM-DD", time_format: false }
+      - { name: status, label: 발행 상태, widget: select, options: [{label: 임시저장, value: draft}, {label: 홈페이지에 공개, value: published}], default: draft }
+      - { name: seo_approved, label: 검색엔진 색인 승인, widget: boolean, default: false, hint: "의료 정보 감수와 고유 콘텐츠 검토 후에만 켜세요." }
+      - { name: body, label: 본문, widget: markdown, hint: "## 소제목, 일반 문장, FAQ 등을 작성하세요." }
