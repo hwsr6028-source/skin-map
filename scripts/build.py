@@ -8,7 +8,7 @@ OUT.mkdir()
 shutil.copy2(ROOT/'assets'/'style.css',OUT/'assets'/'style.css')
 shutil.copytree(ROOT/'admin', OUT/'admin', dirs_exist_ok=True)
 if (ROOT/'assets'/'uploads').exists(): shutil.copytree(ROOT/'assets'/'uploads',OUT/'assets'/'uploads',dirs_exist_ok=True)
-DOMAIN=os.environ.get('SITE_URL','https://example.pages.dev').rstrip('/')
+DOMAIN=os.environ.get('SITE_URL','https://skin-map.pages.dev').rstrip('/')
 with open(ROOT/'data'/'pages.csv',encoding='utf-8-sig',newline='') as f: rows=list(csv.DictReader(f))
 def esc(s):return html.escape(str(s or ''),quote=True)
 def url(row):return '/region/'+row['region_slug']+'/'+(row['procedure_slug']+'/' if row['type']=='procedure' else '')
@@ -51,7 +51,8 @@ def markdown_to_html(source):
         match=re.match(r'^(#{1,3})\s+(.+) Remove only after substantial editorial review.
 (OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
 now=datetime.date.today().isoformat()
-(OUT/'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n<url><loc>'+DOMAIN+'/</loc><lastmod>'+now+'</lastmod></url>\n</urlset>',encoding='utf8')
+sitemap_urls=['/','/blog/']+['/blog/'+x['slug']+'/' for x in posts if x.get('seo_approved',False)]
+(OUT/'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join('<url><loc>'+DOMAIN+p+'</loc><lastmod>'+now+'</lastmod></url>\n' for p in sitemap_urls)+'</urlset>',encoding='utf8')
 print('Built',len(published)+1,'pages ->',OUT)
 ,line)
         if match:
