@@ -97,7 +97,7 @@ collections:
           - { label: "홈페이지에 공개", value: published }
         default: draft
       - name: seo_approved
-        label: "검색엔진 색인 승인"
+        label: "검색 노출 허용 (Google·Naver)"
         widget: boolean
-        default: false
-        hint: "자료 출처 및 사실 확인 완료 후 켜세요. 병원·법률·금융 정보는 더욱 꼼꼼한 검토가 필요합니다."
+        default: true
+        hint: "새 글은 기본적으로 검색 허용입니다. 공개 전 사실 확인과 출처 검토를 완료하세요. 비공개·검토 중 글은 끄세요."
