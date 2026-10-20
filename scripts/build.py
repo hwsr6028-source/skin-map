@@ -72,8 +72,12 @@ for f in sorted((ROOT/'content'/'posts').glob('*.json')):
     try:
         obj=json.loads(f.read_text(encoding='utf8'))
         if obj.get('status')=='published':
-            slug=obj.get('slug','')
-            if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*',slug): raise ValueError('Invalid post slug')
+            # Sveltia stores the generated slug in the filename, not necessarily JSON.
+            # Preserve legacy slug values for old posts; use the filename for new posts.
+            slug=str(obj.get('slug') or f.stem).strip().lower()
+            if not re.fullmatch(r'[가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]+(?:-[가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]+)*',slug):
+                raise ValueError('Invalid post slug: '+slug)
+            obj['slug']=slug
             posts.append(obj)
     except Exception as e:
         print('Skipped post',f.name,':',e)
