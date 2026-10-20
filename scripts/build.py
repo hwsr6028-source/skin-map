@@ -170,6 +170,16 @@ home_html=home_html.replace('정보세상 | 지역별 피부과·시술 정보',
 home_index.write_text(home_html,encoding='utf8')
 (OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
 now=datetime.date.today().isoformat()
-sitemap_urls=['/','/blog/']+['/blog/'+x['slug']+'/' for x in posts if x.get('seo_approved',False)]
-(OUT/'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join('<url><loc>'+DOMAIN+p+'</loc><lastmod>'+now+'</lastmod></url>\n' for p in sitemap_urls)+'</urlset>',encoding='utf8')
+# Generate a fresh sitemap on every deployment. Only public, indexing-approved posts are listed.
+sitemap_entries=[('/',None),('/blog/',None)]
+for x in posts:
+    if x.get('seo_approved',False) is True:
+        sitemap_entries.append(('/blog/'+x['slug']+'/',str(x.get('date',''))[:10]))
+sitemap_xml='<?xml version="1.0" encoding="UTF-8"?>\\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\\n'
+for p,modified in sitemap_entries:
+    loc=esc(DOMAIN+quote(p,safe='/'))
+    valid_date=bool(re.fullmatch(r'\\d{4}-\\d{2}-\\d{2}',modified or ''))
+    sitemap_xml+='<url><loc>'+loc+'</loc>'+('<lastmod>'+modified+'</lastmod>' if valid_date else '')+'</url>\\n'
+sitemap_xml+='</urlset>'
+(OUT/'sitemap.xml').write_text(sitemap_xml,encoding='utf8')
 print('Built',len(published)+len(posts)+2,'pages ->',OUT)
