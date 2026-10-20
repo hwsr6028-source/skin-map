@@ -14,8 +14,8 @@ public_folder: /assets/uploads
 
 collections:
   - name: articles
-    label: SEO 블로그 글
-    label_singular: 블로그 글
+    label: 정보세상 글 관리
+    label_singular: 정보 글
     folder: content/posts
     create: true
     delete: true
@@ -27,12 +27,12 @@ collections:
     fields:
       - { name: title, label: 글 제목, widget: string, hint: "예) 강남울쎄라 | 강남역 울쎄라 선택 가이드" }
       - { name: slug, label: URL 주소 영문, widget: string, hint: "예) gangnam-ulthera-guide (영어 소문자와 -만 사용)" }
-      - { name: region, label: 지역, widget: string, required: false, hint: "예) 강남" }
-      - { name: procedure, label: 시술명, widget: string, required: false, hint: "예) 울쎄라" }
-      - { name: category, label: 블로그 카테고리, widget: select, options: [{label: 피부과 정보, value: dermatology}, {label: 리프팅, value: lifting}, {label: 스킨부스터, value: skinbooster}, {label: 기타 시술, value: other}], default: dermatology, hint: "블로그 목록의 카테고리 메뉴에 반영됩니다." }
+      - { name: region, label: 지역 (선택), widget: string, required: false, hint: "지역 키워드가 있는 글만 입력하세요." }
+      - { name: procedure, label: 세부 주제, widget: string, required: false, hint: "예) 이사 견적, 전세 계약, 피부 관리" }
+      - { name: category, label: 글 카테고리, widget: select, options: [{label: 병원·건강, value: health}, {label: 법률, value: law}, {label: 인테리어, value: interior}, {label: 이사·생활, value: moving}, {label: 부동산, value: realestate}, {label: 금융·경제, value: finance}, {label: IT·디지털, value: tech}, {label: 교육·취업, value: education}, {label: 여행·취미, value: travel}, {label: 비즈니스·기타, value: general}, {label: 기존 피부과 정보, value: dermatology}, {label: 기존 리프팅, value: lifting}, {label: 기존 스킨부스터, value: skinbooster}, {label: 기존 기타 시술, value: other}], default: general, hint: "기존 글 카테고리도 그대로 유지됩니다." }
       - { name: thumbnail, label: 썸네일 대표 이미지, widget: image, required: false, hint: "목록 카드에 표시할 이미지입니다. 미설정 시 본문 첫 이미지를 사용합니다." }
       - { name: description, label: SEO 설명, widget: text, hint: "150자 내외의 검색 결과 요약" }
       - { name: date, label: 작성일, widget: datetime, format: "YYYY-MM-DD", time_format: false }
       - { name: status, label: 발행 상태, widget: select, options: [{label: 임시저장, value: draft}, {label: 홈페이지에 공개, value: published}], default: draft }
-      - { name: seo_approved, label: 검색엔진 색인 승인, widget: boolean, default: false, hint: "의료 정보 감수와 고유 콘텐츠 검토 후에만 켜세요." }
+      - { name: seo_approved, label: 검색엔진 색인 승인, widget: boolean, default: false, hint: "전문성이 필요한 글은 사실 확인·출처 검토를 마친 후에만 켜세요." }
       - { name: body, label: 본문, widget: markdown, hint: "## 소제목, 일반 문장, FAQ 등을 작성하세요." }
