@@ -29,6 +29,8 @@ collections:
       - { name: slug, label: URL 주소 영문, widget: string, hint: "예) gangnam-ulthera-guide (영어 소문자와 -만 사용)" }
       - { name: region, label: 지역, widget: string, required: false, hint: "예) 강남" }
       - { name: procedure, label: 시술명, widget: string, required: false, hint: "예) 울쎄라" }
+      - { name: category, label: 블로그 카테고리, widget: select, options: [{label: 피부과 정보, value: dermatology}, {label: 리프팅, value: lifting}, {label: 스킨부스터, value: skinbooster}, {label: 기타 시술, value: other}], default: dermatology, hint: "블로그 목록의 카테고리 메뉴에 반영됩니다." }
+      - { name: thumbnail, label: 썸네일 대표 이미지, widget: image, required: false, hint: "목록 카드에 표시할 이미지입니다. 미설정 시 본문 첫 이미지를 사용합니다." }
       - { name: description, label: SEO 설명, widget: text, hint: "150자 내외의 검색 결과 요약" }
       - { name: date, label: 작성일, widget: datetime, format: "YYYY-MM-DD", time_format: false }
       - { name: status, label: 발행 상태, widget: select, options: [{label: 임시저장, value: draft}, {label: 홈페이지에 공개, value: published}], default: draft }
