@@ -6,6 +6,8 @@ if OUT.exists(): shutil.rmtree(OUT)
 OUT.mkdir()
 (OUT/'assets').mkdir()
 shutil.copy2(ROOT/'assets'/'style.css',OUT/'assets'/'style.css')
+shutil.copytree(ROOT/'admin', OUT/'admin', dirs_exist_ok=True)
+if (ROOT/'assets'/'uploads').exists(): shutil.copytree(ROOT/'assets'/'uploads',OUT/'assets'/'uploads',dirs_exist_ok=True)
 DOMAIN=os.environ.get('SITE_URL','https://example.pages.dev').rstrip('/')
 with open(ROOT/'data'/'pages.csv',encoding='utf-8-sig',newline='') as f: rows=list(csv.DictReader(f))
 def esc(s):return html.escape(str(s or ''),quote=True)
@@ -28,6 +30,66 @@ for r in published:
  breadcrumb='<a href="/">홈</a> <span> / </span> '+('<a href="/region/'+r['region_slug']+'/">'+esc(r['region'])+'</a> <span> / </span> ' if is_proc and any(x['type']=='region' and x['region_slug']==r['region_slug'] for x in regions) else '')+esc(kw)
  body=f'''<section class="article-top"><div class="shell"><div class="crumb">{breadcrumb}</div><span class="kicker">{'TREATMENT GUIDE' if is_proc else 'LOCAL GUIDE'}</span><h1>{esc(kw)}<br><em>선택 가이드</em></h1><p>{esc(r['intro'])}</p></div></section><section class="shell article-grid"><article class="article"><span class="kicker">01 / INTRODUCTION</span><h2>{esc(kw)} 알아보기</h2><p>{esc(r['intro'])}</p><span class="kicker">02 / LOCAL INFORMATION</span><h2>{esc(r['region'])} 지역 체크포인트</h2><p>{esc(r['local_info'])}</p><span class="kicker">03 / THINGS TO KNOW</span><h2>상담 전에 알아둘 점</h2><p>{esc(r['detail'])}</p><span class="kicker">04 / SAFETY FIRST</span><h2>주의사항</h2><p>{esc(r['considerations'])}</p><div class="disclaimer">이 페이지는 교육 목적의 기초 안내 자료입니다. 개인별 적합성과 위험성은 의료진의 진료로 확인해야 합니다. 공개 발행 전 지역 고유정보, 원자료 출처 및 의료 전문가 검토를 보강하세요.</div></article><aside><div class="sidebar"><span class="kicker">EXPLORE MORE</span><h3>함께 살펴보기</h3>{''.join('<a href="'+url(x)+'">'+esc(x['region']+(x['procedure'] if x['type']=='procedure' else '피부과'))+' <span>↗</span></a>' for x in related)}<a href="/">전체 가이드 <span>↗</span></a></div></aside></section>'''
  save(path,frame(r['title'],r['description'],path,body,index=False)) # draft content held noindex until verified
+
+# CMS markdown articles, safely rendered as plain markdown blocks.
+import json, re
+def md_inline(line):
+    safe=esc(line)
+    safe=re.sub(r'\[([^\]]+)\]\((https?://[^)\s]+)\)',lambda m:'<a href="'+m.group(2)+'" rel="noopener noreferrer">'+m.group(1)+'</a>',safe)
+    safe=re.sub(r'\*\*([^*]+)\*\*',r'<strong>\1</strong>',safe)
+    return safe
+def markdown_to_html(source):
+    result=[]; paragraph=[]; listing=[]
+    def flush():
+        if paragraph:
+            result.append('<p>'+ '<br>'.join(md_inline(x) for x in paragraph)+'</p>');paragraph.clear()
+        if listing:
+            result.append('<ul>'+''.join('<li>'+md_inline(x)+'</li>' for x in listing)+'</ul>');listing.clear()
+    for line in str(source or '').splitlines():
+        line=line.strip()
+        if not line: flush();continue
+        match=re.match(r'^(#{1,3})\s+(.+) Remove only after substantial editorial review.
+(OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
+now=datetime.date.today().isoformat()
+(OUT/'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n<url><loc>'+DOMAIN+'/</loc><lastmod>'+now+'</lastmod></url>\n</urlset>',encoding='utf8')
+print('Built',len(published)+1,'pages ->',OUT)
+,line)
+        if match:
+            flush();level=len(match.group(1))+1
+            result.append('<h'+str(level)+'>'+md_inline(match.group(2))+'</h'+str(level)+'>')
+        elif line.startswith('- '):
+            if paragraph: flush()
+            listing.append(line[2:])
+        else:
+            if listing: flush()
+            paragraph.append(line)
+    flush()
+    return '\n'.join(result)
+posts=[]
+for f in sorted((ROOT/'content'/'posts').glob('*.json')):
+    try:
+        obj=json.loads(f.read_text(encoding='utf8'))
+        if obj.get('status')=='published':
+            slug=obj.get('slug','')
+            if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*',slug): raise ValueError('Invalid post slug')
+            posts.append(obj)
+    except Exception as e:
+        print('Skipped post',f.name,':',e)
+for article in posts:
+    path='/blog/'+article['slug']+'/'
+    title=article.get('title','')
+    desc=article.get('description','')
+    page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">SKINMAP JOURNAL</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
+    page+='<section class="shell article-grid"><article class="article">'+markdown_to_html(article.get('body',''))+'<div class="disclaimer">일반적인 의료 정보이며 개인별 적합성은 의료진의 진료가 필요합니다.</div></article></section>'
+    save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False))))
+blog_listing='<section class="article-top"><div class="shell"><span class="kicker">SKINMAP JOURNAL</span><h1>피부과·시술 정보 블로그</h1><p>지역별 피부 관리와 시술 정보를 살펴보세요.</p></div></section><section class="section shell"><div class="cards">'+''.join('<a class="tile" href="/blog/'+esc(x['slug'])+'/"><span class="eyebrow">'+esc(x.get('region',''))+' · '+esc(x.get('procedure',''))+'</span><strong>'+esc(x.get('title',''))+'</strong><small>글 읽기 ↗</small></a>' for x in posts)+'</div></section>'
+save('/blog/',frame('피부과·시술 블로그 | 스킨맵','지역별 피부과 및 시술 정보 모음','/blog/',blog_listing))
+# Add the blog entry point to the existing home page without disturbing other sections.
+home_index=OUT/'index.html'
+home_html=home_index.read_text(encoding='utf8')
+home_html=home_html.replace('</main>','<section class="section shell"><div class="section-head"><div><span class="kicker">03 / JOURNAL</span><h2>피부과·시술 블로그</h2><p>지역과 시술에 대한 새로운 정보를 확인해 보세요.</p></div></div><a class="cta" href="/blog/">블로그 글 보기 ↗</a></section></main>')
+home_index.write_text(home_html,encoding='utf8')
+
 # Explicit noindex for all generated draft examples. Remove only after substantial editorial review.
 (OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
 now=datetime.date.today().isoformat()
