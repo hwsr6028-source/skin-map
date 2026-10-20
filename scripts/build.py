@@ -41,9 +41,9 @@ def md_inline(line):
         if not (raw_url.startswith('/assets/uploads/') or raw_url.startswith('https://') or raw_url.startswith('http://')):
             return m.group(0)
         return '<img src="'+esc(raw_url)+'" alt="'+alt+'" loading="lazy" decoding="async" class="post-image">'
-    safe=re.sub(r'!\\[([^\\]]*)\\]\\(([^)\\s]+)\\)',image_replace,safe)
-    safe=re.sub(r'\\[([^\\]]+)\\]\\((https?://[^)\\s]+)\\)',lambda m:'<a href="'+esc(html.unescape(m.group(2)))+'" rel="noopener noreferrer">'+m.group(1)+'</a>',safe)
-    safe=re.sub(r'\\*\\*([^*]+)\\*\\*',r'<strong>\\1</strong>',safe)
+    safe=re.sub(r'!\[([^\]]*)\]\(([^)\s]+)\)',image_replace,safe)
+    safe=re.sub(r'\[([^\]]+)\]\((https?://[^)\s]+)\)',lambda m:'<a href="'+esc(html.unescape(m.group(2)))+'" rel="noopener noreferrer">'+m.group(1)+'</a>',safe)
+    safe=re.sub(r'\*\*([^*]+)\*\*',r'<strong>\1</strong>',safe)
     return safe
 def markdown_to_html(source):
     result=[]; paragraph=[]; listing=[]
