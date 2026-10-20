@@ -77,20 +77,81 @@ for f in sorted((ROOT/'content'/'posts').glob('*.json')):
             posts.append(obj)
     except Exception as e:
         print('Skipped post',f.name,':',e)
+# Featured blog cards and static category / pagination pages
+from urllib.parse import unquote
+CATEGORIES={'dermatology':'피부과 정보','lifting':'리프팅','skinbooster':'스킨부스터','other':'기타 시술'}
+PAGE_SIZE=9
+def category_of(post):
+    val=str(post.get('category','')).strip()
+    if val in CATEGORIES:return val
+    subject=str(post.get('procedure',''))+' '+str(post.get('title',''))
+    if any(w in subject for w in ('울쎄라','써마지','온다','볼뉴머','슈링크','리프팅','덴서티','텐서마')):return 'lifting'
+    if any(w in subject for w in ('리쥬란','쥬베룩','스킨부스터','리투오','물광','엑소좀')):return 'skinbooster'
+    return 'dermatology'
+def image_url(value):
+    v=str(value or '').strip()
+    if not v:return ''
+    if v.startswith('https://') or v.startswith('http://'):return v
+    if v.startswith('/assets/uploads/'):return v
+    if v.startswith('assets/uploads/'):return '/'+v
+    return ''
+def card_image(post):
+    cover=image_url(post.get('thumbnail',''))
+    if cover:return cover
+    match=re.search(r'!\[[^\]]*\]\(([^)\s]+)\)',str(post.get('body','')))
+    return image_url(unquote(match.group(1))) if match else ''
+def blog_card(post):
+    img=card_image(post)
+    pic=('<span class="blog-card-media"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'"></span>' if img else '<span class="blog-card-media blog-card-placeholder"><span>SKINMAP</span></span>')
+    path='/blog/'+esc(post['slug'])+'/'
+    cat=CATEGORIES[category_of(post)]
+    date=str(post.get('date',''))[:10]
+    return '<a class="blog-card" href="'+path+'">'+pic+'<span class="blog-card-copy"><span class="blog-card-meta">'+esc(cat)+' · '+esc(date)+'</span><strong>'+esc(post.get('title',''))+'</strong><span class="blog-card-description">'+esc(post.get('description',''))+'</span><span class="blog-card-more">글 읽기 ↗</span></span></a>'
+posts.sort(key=lambda x:(str(x.get('date','')),str(x.get('title',''))),reverse=True)
 for article in posts:
     path='/blog/'+article['slug']+'/'
     title=article.get('title','')
     desc=article.get('description','')
-    page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">SKINMAP JOURNAL</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
+    page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">'+esc(CATEGORIES[category_of(article)])+'</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
     page+='<section class="shell article-grid"><article class="article">'+markdown_to_html(article.get('body',''))+'<div class="disclaimer">일반적인 의료 정보이며 개인별 적합성은 의료진의 진료가 필요합니다.</div></article></section>'
     save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False))))
-blog_listing='<section class="article-top"><div class="shell"><span class="kicker">SKINMAP JOURNAL</span><h1>피부과·시술 정보 블로그</h1><p>지역별 피부 관리와 시술 정보를 살펴보세요.</p></div></section><section class="section shell"><div class="cards">'+''.join('<a class="tile" href="/blog/'+esc(x['slug'])+'/"><span class="eyebrow">'+esc(x.get('region',''))+' · '+esc(x.get('procedure',''))+'</span><strong>'+esc(x.get('title',''))+'</strong><small>글 읽기 ↗</small></a>' for x in posts)+'</div></section>'
-save('/blog/',frame('피부과·시술 블로그 | 스킨맵','지역별 피부과 및 시술 정보 모음','/blog/',blog_listing))
+def listing_path(category,num):
+    root='/blog/' if not category else '/blog/category/'+category+'/'
+    return root if num==1 else root+'page/'+str(num)+'/'
+def category_nav(active):
+    all_count=len(posts)
+    links=[('<a class="'+('active' if not active else '')+'" href="/blog/">전체 <span>'+str(all_count)+'</span></a>')]
+    for key,label in CATEGORIES.items():
+        count=sum(category_of(p)==key for p in posts)
+        if count:
+            links.append('<a class="'+('active' if key==active else '')+'" href="'+listing_path(key,1)+'">'+esc(label)+' <span>'+str(count)+'</span></a>')
+    return '<nav class="blog-filters" aria-label="블로그 카테고리">'+''.join(links)+'</nav>'
+def render_listing(category=''):
+    subset=[p for p in posts if not category or category_of(p)==category]
+    total=max(1,(len(subset)+PAGE_SIZE-1)//PAGE_SIZE)
+    for num in range(1,total+1):
+        path=listing_path(category,num)
+        current=subset[(num-1)*PAGE_SIZE:num*PAGE_SIZE]
+        title=(CATEGORIES[category] if category else '피부과·시술 정보 블로그')
+        intro='<section class="article-top"><div class="shell"><span class="kicker">SKINMAP JOURNAL</span><h1>'+esc(title)+'</h1><p>지역별 피부과 및 시술 정보를 확인해 보세요.</p></div></section>'
+        grid='<div class="blog-cards">'+''.join(blog_card(x) for x in current)+'</div>' if current else '<p>아직 이 카테고리에 공개된 글이 없습니다.</p>'
+        page_links=''
+        if total>1:
+            for i in range(1,total+1):
+                page_links+='<a '+('aria-current="page" class="active" ' if i==num else '')+'href="'+listing_path(category,i)+'">'+str(i)+'</a>'
+        pager='<nav class="blog-pagination" aria-label="페이지 이동">'+page_links+'</nav>' if page_links else ''
+        body=intro+'<section class="section shell">'+category_nav(category)+grid+pager+'</section>'
+        save(path,frame(title+' | 스킨맵', '지역별 피부과·시술 블로그 글 모음',path,body,index=True))
+render_listing()
+for cat in CATEGORIES:
+    if any(category_of(x)==cat for x in posts):render_listing(cat)
 home_index=OUT/'index.html'
 home_html=home_index.read_text(encoding='utf8')
-featured=sorted(posts,key=lambda x:str(x.get('date','')),reverse=True)[:6]
-featured_cards=''.join('<a class="tile" href="/blog/'+esc(x['slug'])+'/"><span class="eyebrow">'+esc(x.get('region',''))+' · '+esc(x.get('procedure',''))+'</span><strong>'+esc(x.get('title',''))+'</strong><small>자세히 보기 ↗</small></a>' for x in featured)
-blog_section='<section class="section shell" id="blog"><div class="section-head"><div><span class="kicker">01 / BLOG</span><h2>최신 블로그 글</h2><p>지역별 피부과와 시술 정보를 확인해 보세요.</p></div><a class="cta" href="/blog/">전체 글 보기 ↗</a></div><div class="cards">'+featured_cards+'</div></section>'
+featured=posts[:6]
+featured_cards=''.join(blog_card(x) for x in featured)
+if not featured_cards:
+    featured_cards='<p>첫 번째 블로그 글을 기다리고 있습니다.</p>'
+blog_section='<section class="section shell" id="blog"><div class="section-head"><div><span class="kicker">01 / BLOG</span><h2>최신 블로그 글</h2><p>지역별 피부과와 시술 정보를 확인해 보세요.</p></div><a class="blog-all-link" href="/blog/">전체 글 보기 ↗</a></div><div class="blog-cards">'+featured_cards+'</div></section>'
 home_html=home_html.replace('<section class="section shell" id="regions">',blog_section+'<section class="section shell" id="regions">',1)
 home_index.write_text(home_html,encoding='utf8')
 (OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
