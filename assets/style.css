@@ -28,3 +28,13 @@
 .blog-all-link{font-size:13px;font-weight:700;color:#345f50;white-space:nowrap}
 @media(max-width:850px){.blog-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}}
 @media(max-width:540px){.blog-cards{grid-template-columns:1fr}.blog-card-copy{padding:18px}.blog-card-copy strong{font-size:18px}.blog-filters{gap:7px}.blog-filters a{font-size:12px;padding:9px 12px}.section-head{gap:12px;flex-wrap:wrap}.nav nav{gap:9px}.nav nav a{font-size:10px}}
+
+/* Information World multi-topic portal */
+.topic-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.topic-tile{display:flex;flex-direction:column;gap:12px;padding:22px 18px;border-radius:14px;background:#f6f8f6;border:1px solid #e5ebe7;min-height:157px;transition:transform .2s,box-shadow .2s}
+.topic-tile:hover{transform:translateY(-3px);box-shadow:0 12px 22px #152c2114}
+.topic-symbol{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#e0eee6;color:#345f50;font-size:22px;font-weight:700}
+.topic-tile strong{font-size:16px}
+.topic-tile small{font-size:11px;color:#819186}
+@media(max-width:900px){.topic-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.topic-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.topic-tile{padding:17px;min-height:140px}.wordmark{font-size:20px}.nav nav{overflow-x:auto;white-space:nowrap;max-width:70%;scrollbar-width:none}.nav nav a{flex-shrink:0}}
