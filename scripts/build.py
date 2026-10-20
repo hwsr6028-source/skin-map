@@ -145,7 +145,7 @@ def render_listing(category=''):
         save(path,frame(title+' | 정보세상', '다양한 분야별 최신 가이드와 실용 정보 모음',path,body,index=True))
 render_listing()
 for cat in CATEGORIES:
-    if any(category_of(x)==cat for x in posts):render_listing(cat)
+    if cat not in ('dermatology','lifting','skinbooster','other') or any(category_of(x)==cat for x in posts):render_listing(cat)
 home_index=OUT/'index.html'
 home_html=home_index.read_text(encoding='utf8')
 featured=posts[:6]
