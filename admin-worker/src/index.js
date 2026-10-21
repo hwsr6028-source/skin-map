@@ -210,13 +210,13 @@ export default {
       if(current.sha!==data.sha)return json({error:"다른 곳에서 변경된 글입니다. 새로 불러온 뒤 다시 저장해 주세요."},409);
       const oldArticle=decodeFile(current.content);
       const changed=String(oldArticle.keyword||"").trim()!==keyword;
-      slug=changed?slugify(keyword):String(oldArticle.slug||oldFile.replace(/\\.json$/,""));
+      slug=changed?slugify(keyword):String(oldArticle.slug||oldFile.replace(/\.json$/,""));
       if(!fileName(slug+".json"))return json({error:"변경된 키워드로 URL을 만들 수 없습니다."},400);
       file=changed?slug+".json":oldFile;
       rename=file!==oldFile;
       previousSlugs=Array.isArray(oldArticle.previous_slugs)?oldArticle.previous_slugs:[];
       if(rename){
-        const oldSlug=String(oldArticle.slug||oldFile.replace(/\\.json$/,""));
+        const oldSlug=String(oldArticle.slug||oldFile.replace(/\.json$/,""));
         previousSlugs=[...new Set([...previousSlugs,oldSlug])].filter(x=>x!==slug).slice(-20);
         try{await github(env,"GET","contents/content/posts/"+encodeURIComponent(file)+"?ref="+encodeURIComponent(branch));
           return json({error:"변경하려는 URL에 이미 다른 글이 있습니다. 핵심키워드를 다르게 설정해 주세요."},409);
@@ -243,7 +243,7 @@ export default {
           base_tree:base.tree.sha,
           tree:[
             {path:"content/posts/"+data.file,mode:"100644",type:"blob",sha:null},
-            {path:filePath,mode:"100644",type:"blob",content:JSON.stringify(article,null,2)+"\\n"}
+            {path:filePath,mode:"100644",type:"blob",content:JSON.stringify(article,null,2)+"\n"}
           ]
         });
         const commit=await github(env,"POST","git/commits",{
