@@ -42,9 +42,27 @@ async function list(){
  root.replaceChildren();
  if(!d.posts.length){root.textContent="아직 작성된 글이 없습니다.";return;}
  for(const p of d.posts){
-   const button=document.createElement("button");button.type="button";button.textContent=p.file;
-   button.onclick=()=>openPost(p.file);root.appendChild(button);
+   const item=document.createElement("div");item.className="post-list-item";
+   const label=document.createElement("span");label.className="post-list-name";label.textContent=p.file;label.title=p.file;
+   const actions=document.createElement("div");actions.className="post-list-actions";
+   const edit=document.createElement("button");edit.type="button";edit.className="post-list-edit";edit.textContent="수정";
+   edit.addEventListener("click",()=>openPost(p.file));
+   const remove=document.createElement("button");remove.type="button";remove.className="post-list-delete";remove.textContent="삭제";
+   remove.addEventListener("click",()=>deletePost(p.file,p.sha,p.file));
+   actions.append(edit,remove);item.append(label,actions);root.appendChild(item);
  }
+}
+async function deletePost(file,sha,title){
+ if(!file||!sha)return alert("글 정보가 올바르지 않습니다. 목록을 다시 불러와 주세요.");
+ if(!confirm("다음 글을 삭제하시겠습니까?\n\n"+title+"\n\n삭제하면 홈페이지에서 글이 내려갑니다."))return;
+ if(prompt("최종 확인: '삭제'라고 입력해 주세요.")!=="삭제")return;
+ $("message").textContent="삭제 중...";
+ try{
+   await api("post",{method:"DELETE",body:JSON.stringify({file,sha})});
+   if(editFile===file)reset();
+   await list();
+   $("message").textContent="글 삭제 완료! 홈페이지 자동 배포가 시작됩니다.";
+ }catch(err){$("message").textContent="삭제 실패: "+err.message;alert("삭제 실패: "+err.message);}
 }
 async function openPost(file){
  try{
@@ -58,18 +76,7 @@ async function openPost(file){
  }catch(e){alert(e.message);}
 }
 $("delete-post").addEventListener("click",async()=>{
- if(!editFile||!editSha)return;
- const name=$("title").value.trim()||editFile;
- if(!confirm("정말 이 글을 삭제하시겠습니까?\n\n"+name+"\n\n홈페이지에서 글이 내려가며, 삭제 후에는 관리자에서 복구할 수 없습니다."))return;
- const typed=prompt("삭제를 확정하려면 '삭제'라고 입력하세요.");
- if(typed!=="삭제")return;
- const btn=$("delete-post");btn.disabled=true;$("message").textContent="삭제 중...";
- try{
-   await api("post",{method:"DELETE",body:JSON.stringify({file:editFile,sha:editSha})});
-   reset();await list();
-   $("message").textContent="글이 삭제되었습니다. 홈페이지 자동 배포가 시작됩니다.";
- }catch(err){$("message").textContent="삭제 실패: "+err.message;}
- finally{btn.disabled=false;}
+ await deletePost(editFile,editSha,$("title").value.trim()||editFile);
 });
 $("post-form").addEventListener("submit",async e=>{
  e.preventDefault();const button=$("save-btn");button.disabled=true;$("message").textContent="저장 중...";
