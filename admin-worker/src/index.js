@@ -146,7 +146,7 @@ export default {
      const description=body.replace(/[#*\[\]<>]/g,"").replace(/\s+/g," ").slice(0,150);
      const article={
        title,keyword,slug,category:categoryFor(keyword,title),description,body,
-       thumbnail:"",date,status:"draft",seo_approved:false,
+       thumbnail:"",date,status:"published",seo_approved:true,
        source:"google-sheets",source_sheet_id:String(d.sheetId||"").slice(0,80),
        source_row:Number.isInteger(d.row)&&d.row>=1?d.row:null,imported_at:new Date().toISOString()
      };
@@ -198,7 +198,7 @@ export default {
     const title=String(d.title||"").trim(),keyword=String(d.keyword||"").trim();
     if(!title||!keyword||!String(d.body||"").trim())return json({error:"제목, 핵심 키워드, 본문은 필수입니다."},400);
     const allowed=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","fortune","tattoo","shopping","supplements"]);
-    const status=d.status==="published"?"published":"draft";
+    const status="published"; // Saving from the admin publishes immediately.
     const branch=env.GITHUB_BRANCH||"main";
     let file,slug,previousSlugs=Array.isArray(d.previous_slugs)?d.previous_slugs:[];
     let rename=false;
@@ -229,7 +229,7 @@ export default {
     }
     const article={...d,slug,title,keyword,category:allowed.has(d.category)?d.category:"general",
       description:String(d.description||"").slice(0,500),body:String(d.body),thumbnail:String(d.thumbnail||""),
-      status,seo_approved:d.seo_approved===true,updated_at:new Date().toISOString(),
+      status,seo_approved:true,updated_at:new Date().toISOString(),
       date:String(d.date||new Date().toISOString().slice(0,10)).slice(0,10),previous_slugs:previousSlugs};
     const filePath="content/posts/"+file;
     try{
