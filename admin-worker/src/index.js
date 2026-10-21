@@ -50,6 +50,10 @@ async function github(env,method,path,body){
   return data;
 }
 const IMPORT_CATEGORIES=[
+ ["fortune",/점집|사주|운세|타로|신점|철학관|무속/],
+ ["tattoo",/타투|문신|반영구|타투이스트|레터링타투/],
+ ["shopping",/구매대행|해외직구|배송대행|수입대행|직구대행/],
+ ["supplements",/건강식품|건강기능식품|영양제|비타민|유산균|프로바이오틱스/],
  ["moving",/이사|포장이사|이삿짐|용달|입주청소|청소업체|폐기물|생활서비스/],
  ["education",/학원|과외|수학|영어교육|초등|중등|고등|입시|교육|유학|취업|자격증/],
  ["law",/법률|변호사|법무사|소송|계약분쟁|이혼|형사|민사|상속|개인회생/],
@@ -169,7 +173,8 @@ export default {
         try{
           const r=await github(env,"GET","contents/content/posts/"+encodeURIComponent(f.name)+"?ref="+encodeURIComponent(branch));
           const article=decodeFile(r.content);
-          const category=String(article.category||"general");
+          const legacyCategories={dermatology:"health",lifting:"health",skinbooster:"health",other:"general"};
+          const category=legacyCategories[article.category]||String(article.category||"general");
           return {file:f.name,sha:r.sha,title:String(article.title||f.name),category,status:article.status==="published"?"published":"draft",date:String(article.date||"").slice(0,10),latestAt:String(article.updated_at||article.imported_at||article.created_at||article.date||""),sourceRow:Number(article.source_row)||0};
         }catch{
           return {file:f.name,sha:f.sha,title:f.name,category:"general",status:"unknown",date:"",metadataError:true};
@@ -196,7 +201,7 @@ export default {
     if(!slug||!fileName(slug+".json"))return json({error:"키워드를 짧고 명확하게 입력해 주세요."},400);
     const file=editing?data.file:slug+".json";
     if(!fileName(file))return json({error:"잘못된 파일명입니다."},400);
-    const allowed=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","dermatology","lifting","skinbooster","other"]);
+    const allowed=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","fortune","tattoo","shopping","supplements"]);
     const status=d.status==="published"?"published":"draft";
     const article={...d,slug,title,keyword,category:allowed.has(d.category)?d.category:"general",description:String(d.description||"").slice(0,500),
       body:String(d.body),thumbnail:String(d.thumbnail||""),status,seo_approved:d.seo_approved===true,updated_at:new Date().toISOString(),
