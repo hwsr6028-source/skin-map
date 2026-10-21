@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 let editFile=null,editSha=null,editingSlug="";
 let allPosts=[],activeCategory="all";
-const categories=[["health","병원·건강"],["law","법률"],["interior","인테리어"],["moving","이사·생활"],["realestate","부동산"],["finance","금융·경제"],["tech","IT·디지털"],["education","교육·취업"],["travel","여행·취미"],["general","비즈니스·기타"],["dermatology","기존 피부과"],["lifting","기존 리프팅"],["skinbooster","기존 스킨부스터"],["other","기존 기타 시술"]];
+const categories=[["health","병원·건강"],["law","법률"],["interior","인테리어"],["moving","이사·생활"],["realestate","부동산"],["finance","금융·경제"],["tech","IT·디지털"],["education","교육·취업"],["travel","여행·취미"],["general","비즈니스·기타"],["fortune","점집"],["tattoo","타투"],["shopping","구매대행"],["supplements","건강식품"]];
 const categoryName=id=>categories.find(x=>x[0]===id)?.[1]||"미분류";
 const fields=["title","keyword","description","category","thumbnail","body","region","procedure","date","status"];
 const api=async (path,opts={})=>{
@@ -107,6 +107,9 @@ async function openPost(file){
    editFile=file;editSha=data.sha;editingSlug=data.article.slug||file.replace(/\.json$/,"");
    $("delete-post").hidden=false;
    for(const field of fields)$(field).value=data.article[field]??"";
+   // Legacy article categories remain editable, without showing retired categories in navigation.
+   const legacy={dermatology:"health",lifting:"health",skinbooster:"health",other:"general"};
+   if(legacy[data.article.category])$("category").value=legacy[data.article.category];
    $("seo_approved").checked=data.article.seo_approved===true;
    $("editor-title").textContent="글 수정: "+(data.article.title||file);$("message").textContent="";preview();
    window.scrollTo({top:0,behavior:"smooth"});
