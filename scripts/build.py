@@ -1,4 +1,5 @@
 import csv, html, pathlib, datetime, os, shutil, hashlib
+from email.utils import format_datetime
 from urllib.parse import quote
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 OUT=ROOT/'dist'
@@ -282,4 +283,24 @@ for p,modified in sitemap_entries:
     sitemap_xml+='<url><loc>'+loc+'</loc>'+('<lastmod>'+modified+'</lastmod>' if valid_date else '')+'</url>\n'
 sitemap_xml+='</urlset>'
 (OUT/'sitemap.xml').write_text(sitemap_xml,encoding='utf8')
+
+# RSS 2.0 feed for Naver Search Advisor. Include only publicly available, indexable articles.
+rss_items=[]
+for post in sorted((p for p in posts if p.get('seo_approved') is True),key=lambda p:(str(p.get('updated_at') or p.get('date') or ''),str(p.get('slug') or '')),reverse=True)[:50]:
+    loc=DOMAIN+'/blog/'+quote(post['slug'],safe='-')+'/'
+    title=esc(post.get('title') or post.get('keyword') or '정보세상 콘텐츠')
+    description=esc(str(post.get('description') or post.get('body') or '')[:450])
+    date_raw=str(post.get('updated_at') or post.get('date') or '').strip()
+    try:
+        moment=datetime.datetime.fromisoformat(date_raw.replace('Z','+00:00'))
+        if moment.tzinfo is None:moment=moment.replace(tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
+    except (ValueError,TypeError):
+        moment=datetime.datetime.now(datetime.timezone.utc)
+    pub_date=format_datetime(moment)
+    rss_items.append('<item><title>'+title+'</title><link>'+esc(loc)+'</link><guid isPermaLink="true">'+esc(loc)+'</guid><description>'+description+'</description><pubDate>'+pub_date+'</pubDate></item>')
+rss_xml='<?xml version="1.0" encoding="UTF-8"?>\\n<rss version="2.0"><channel>'
+rss_xml+='<title>정보세상 블로그</title><link>'+esc(DOMAIN+'/blog/')+'</link><description>정보세상 최신 콘텐츠와 생활 정보</description><language>ko</language>'
+rss_xml+=''.join(rss_items)+'</channel></rss>'
+(OUT/'rss.xml').write_text(rss_xml,encoding='utf8')
+
 print('Built',len(published)+len(posts)+2,'pages ->',OUT)
