@@ -83,7 +83,7 @@ export default {
    if(path==="/api/me"&&req.method==="GET")return json({authenticated:await authenticated(req,env)});
    if(!(await authenticated(req,env)))return json({error:"로그인이 필요합니다."},401);
    if(path==="/api/posts"&&req.method==="GET"){
-    if(postsCache&&postsCache.repo===env.GITHUB_REPO&&postsCache.branch===(env.GITHUB_BRANCH||"main")&&Date.now()<postsCache.expires)
+    if(u.searchParams.get("refresh")!=="1"&&postsCache&&postsCache.repo===env.GITHUB_REPO&&postsCache.branch===(env.GITHUB_BRANCH||"main")&&Date.now()<postsCache.expires)
       return json({posts:postsCache.posts});
     const branch=env.GITHUB_BRANCH||"main";
     const listing=await github(env,"GET","contents/content/posts?ref="+encodeURIComponent(branch));
