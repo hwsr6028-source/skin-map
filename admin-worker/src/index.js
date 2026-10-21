@@ -196,29 +196,71 @@ export default {
     const data=await input(req);
     const d=data.article||{},editing=Boolean(data.file);
     const title=String(d.title||"").trim(),keyword=String(d.keyword||"").trim();
-    if(!title||(!editing&&!keyword)||!String(d.body||"").trim())return json({error:"제목, 핵심 키워드, 본문은 필수입니다."},400);
-    const slug=editing?String(d.slug||data.file.replace(/\.json$/,"")):slugify(keyword);
-    if(!slug||!fileName(slug+".json"))return json({error:"키워드를 짧고 명확하게 입력해 주세요."},400);
-    const file=editing?data.file:slug+".json";
-    if(!fileName(file))return json({error:"잘못된 파일명입니다."},400);
+    if(!title||!keyword||!String(d.body||"").trim())return json({error:"제목, 핵심 키워드, 본문은 필수입니다."},400);
     const allowed=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","fortune","tattoo","shopping","supplements"]);
     const status=d.status==="published"?"published":"draft";
-    const article={...d,slug,title,keyword,category:allowed.has(d.category)?d.category:"general",description:String(d.description||"").slice(0,500),
-      body:String(d.body),thumbnail:String(d.thumbnail||""),status,seo_approved:d.seo_approved===true,updated_at:new Date().toISOString(),
-      date:String(d.date||new Date().toISOString().slice(0,10)).slice(0,10)};
-    const args={message:(editing?"Update ":"Publish ")+title,content:encodeFile(article),branch:env.GITHUB_BRANCH||"main"};
+    const branch=env.GITHUB_BRANCH||"main";
+    let file,slug,previousSlugs=Array.isArray(d.previous_slugs)?d.previous_slugs:[];
+    let rename=false;
     if(editing){
-      if(typeof data.sha!=="string"||!data.sha)throw {status:400,message:"수정 시 현재 파일 정보가 필요합니다."};
-      args.sha=data.sha;
+      if(!fileName(data.file)||typeof data.sha!=="string"||!/^[a-f0-9]{40}$/.test(data.sha))
+        return json({error:"수정할 글의 파일 정보가 올바르지 않습니다."},400);
+      const oldFile=data.file;
+      const current=await github(env,"GET","contents/content/posts/"+encodeURIComponent(oldFile)+"?ref="+encodeURIComponent(branch));
+      if(current.sha!==data.sha)return json({error:"다른 곳에서 변경된 글입니다. 새로 불러온 뒤 다시 저장해 주세요."},409);
+      const oldArticle=decodeFile(current.content);
+      const changed=String(oldArticle.keyword||"").trim()!==keyword;
+      slug=changed?slugify(keyword):String(oldArticle.slug||oldFile.replace(/\\.json$/,""));
+      if(!fileName(slug+".json"))return json({error:"변경된 키워드로 URL을 만들 수 없습니다."},400);
+      file=changed?slug+".json":oldFile;
+      rename=file!==oldFile;
+      previousSlugs=Array.isArray(oldArticle.previous_slugs)?oldArticle.previous_slugs:[];
+      if(rename){
+        const oldSlug=String(oldArticle.slug||oldFile.replace(/\\.json$/,""));
+        previousSlugs=[...new Set([...previousSlugs,oldSlug])].filter(x=>x!==slug).slice(-20);
+        try{await github(env,"GET","contents/content/posts/"+encodeURIComponent(file)+"?ref="+encodeURIComponent(branch));
+          return json({error:"변경하려는 URL에 이미 다른 글이 있습니다. 핵심키워드를 다르게 설정해 주세요."},409);
+        }catch(err){if(err.status!==404)throw err;}
+      }
+    }else{
+      slug=slugify(keyword);
+      if(!fileName(slug+".json"))return json({error:"핵심 키워드로 URL을 만들 수 없습니다."},400);
+      file=slug+".json";
     }
+    const article={...d,slug,title,keyword,category:allowed.has(d.category)?d.category:"general",
+      description:String(d.description||"").slice(0,500),body:String(d.body),thumbnail:String(d.thumbnail||""),
+      status,seo_approved:d.seo_approved===true,updated_at:new Date().toISOString(),
+      date:String(d.date||new Date().toISOString().slice(0,10)).slice(0,10),previous_slugs:previousSlugs};
+    const filePath="content/posts/"+file;
     try{
-      await github(env,"PUT","contents/content/posts/"+encodeURIComponent(file),args);
+      if(rename){
+        // Atomic rename and edit: a single Git commit removes the old path and writes the new path.
+        // No intermediate deployment with duplicate public pages.
+        const ref=await github(env,"GET","git/ref/heads/"+encodeURIComponent(branch));
+        const head=ref.object.sha;
+        const base=await github(env,"GET","git/commits/"+head);
+        const tree=await github(env,"POST","git/trees",{
+          base_tree:base.tree.sha,
+          tree:[
+            {path:"content/posts/"+data.file,mode:"100644",type:"blob",sha:null},
+            {path:filePath,mode:"100644",type:"blob",content:JSON.stringify(article,null,2)+"\\n"}
+          ]
+        });
+        const commit=await github(env,"POST","git/commits",{
+          message:"Rename article URL: "+data.file+" → "+file,tree:tree.sha,parents:[head]
+        });
+        await github(env,"PATCH","git/refs/heads/"+encodeURIComponent(branch),{sha:commit.sha,force:false});
+      }else{
+        const args={message:(editing?"Update ":"Publish ")+title,content:encodeFile(article),branch};
+        if(editing)args.sha=data.sha;
+        await github(env,"PUT","contents/"+filePath,args);
+      }
       postsCache=null;
     }catch(e){
-      if(e.status===422)throw {status:409,message:"이미 같은 키워드 주소의 글이 있습니다. 키워드를 변경하세요."};
+      if(e.status===409||e.status===422)return json({error:"저장 충돌 또는 같은 URL이 존재합니다. 목록을 다시 불러온 뒤 확인해 주세요."},409);
       throw e;
     }
-    return json({ok:true,file,url:"https://skin-map.pages.dev/blog/"+encodeURIComponent(slug)+"/"});
+    return json({ok:true,file,renamed:rename,url:"https://skin-map.pages.dev/blog/"+encodeURIComponent(slug)+"/"});
    }
    if(path==="/api/post"&&req.method==="DELETE"){
     // Only authenticated admin may delete. GitHub requires current blob SHA.
