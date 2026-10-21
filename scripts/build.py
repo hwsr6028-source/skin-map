@@ -266,7 +266,7 @@ for post in posts:
 if redirects:
     unique={}
     for src,dst in redirects:unique[src]=dst
-    (OUT/'_redirects').write_text(''.join(src+' '+dst+' 301\\n' for src,dst in unique.items()),encoding='utf8')
+    (OUT/'_redirects').write_text(''.join(src+' '+dst+' 301\n' for src,dst in unique.items()),encoding='utf8')
 
 (OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
 now=datetime.date.today().isoformat()
