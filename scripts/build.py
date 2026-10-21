@@ -1,4 +1,4 @@
-import csv, html, pathlib, datetime, os, shutil
+import csv, html, pathlib, datetime, os, shutil, hashlib
 from urllib.parse import quote
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 OUT=ROOT/'dist'
@@ -100,11 +100,51 @@ def image_url(value):
     if v.startswith('/assets/uploads/'):return v
     if v.startswith('assets/uploads/'):return '/'+v
     return ''
+
+# Free SEO cover images: generated as SVG at every build, no external API or fee.
+COVER_PALETTES={
+ 'health':('#e9f3ec','#335f49','#b4dbc1','HEALTH'),
+ 'law':('#ecedf8','#3c5181','#cbd3eb','LAW'),
+ 'interior':('#f7f0e6','#755537','#ead5b9','INTERIOR'),
+ 'moving':('#e9f3f8','#365e77','#bcdaea','MOVING'),
+ 'realestate':('#eff2e8','#4f6441','#d4dfc0','REAL ESTATE'),
+ 'finance':('#e8f4ef','#296955','#bce2d1','FINANCE'),
+ 'tech':('#efeffa','#4a548a','#ced0ef','TECH'),
+ 'education':('#f8eee8','#8b5843','#eed3c5','EDUCATION'),
+ 'travel':('#e9f4f9','#386e84','#c0dfeb','TRAVEL'),
+ 'general':('#eef3ef','#375e4c','#cadfd0','INFORMATION')
+}
+def auto_cover(post):
+    title=str(post.get('title') or post.get('keyword') or '정보 가이드').strip()
+    category=category_of(post)
+    group=category if category in COVER_PALETTES else 'health'
+    bg,ink,accent,label=COVER_PALETTES[group]
+    digest=hashlib.sha256((post['slug']+'|'+title+'|'+category).encode('utf-8')).hexdigest()[:20]
+    directory=OUT/'assets'/'covers'
+    directory.mkdir(parents=True,exist_ok=True)
+    # Wrap titles by visual glyph width, splitting long Korean phrases as needed.
+    chars=[]
+    for ch in title:
+        chars.append((ch,1.65 if ord(ch)>127 else 1))
+    lines=[];current='';width=0
+    for ch,w in chars:
+        if width+w>24 and current:
+            lines.append(current.strip());current='';width=0
+        if len(lines)==3:break
+        current+=ch;width+=w
+    if current and len(lines)<3:lines.append(current.strip())
+    if not lines:lines=['정보 가이드']
+    if len(lines)==3 and len(''.join(lines))<len(title):lines[-1]=lines[-1][:15].rstrip()+'…'
+    start=260-34*(len(lines)-1)
+    titles=''.join('<text x="74" y="'+str(start+73*i)+'" fill="'+ink+'" font-family="Noto Sans KR, Arial, sans-serif" font-size="52" font-weight="750">'+esc(line)+'</text>' for i,line in enumerate(lines))
+    svg='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675"><rect width="1200" height="675" fill="'+bg+'"/><circle cx="1085" cy="130" r="290" fill="'+accent+'" opacity=".46"/><circle cx="1050" cy="620" r="180" fill="'+accent+'" opacity=".35"/><path d="M74 120h1052M74 568h1052" stroke="'+ink+'" opacity=".18"/><text x="74" y="86" fill="'+ink+'" font-family="Arial,sans-serif" letter-spacing="5" font-size="24" font-weight="700">'+label+'</text>'+titles+'<text x="74" y="624" fill="'+ink+'" font-family="Noto Sans KR, Arial,sans-serif" font-size="29" font-weight="700">정보세상</text><text x="1004" y="621" fill="'+ink+'" font-family="Arial,sans-serif" font-size="23">GUIDE</text></svg>'
+    (directory/(digest+'.svg')).write_text(svg,encoding='utf-8')
+    return '/assets/covers/'+digest+'.svg'
+
 def card_image(post):
     cover=image_url(post.get('thumbnail',''))
     if cover:return cover
-    match=re.search(r'!\[[^\]]*\]\(([^)\s]+)\)',str(post.get('body','')))
-    return image_url(unquote(match.group(1))) if match else ''
+    return post.get('_auto_cover') or auto_cover(post)
 def blog_card(post):
     img=card_image(post)
     pic=('<span class="blog-card-media"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'"></span>' if img else '<span class="blog-card-media blog-card-placeholder"><span>정보세상</span></span>')
@@ -113,6 +153,9 @@ def blog_card(post):
     date=str(post.get('date',''))[:10]
     return '<a class="blog-card" href="'+path+'">'+pic+'<span class="blog-card-copy"><span class="blog-card-meta">'+esc(cat)+' · '+esc(date)+'</span><strong>'+esc(post.get('title',''))+'</strong><span class="blog-card-description">'+esc(post.get('description',''))+'</span><span class="blog-card-more">글 읽기 ↗</span></span></a>'
 posts.sort(key=lambda x:(str(x.get('date','')),str(x.get('title',''))),reverse=True)
+for post in posts:
+    if not image_url(post.get('thumbnail')):
+        post['_auto_cover']=auto_cover(post)
 for article in posts:
     path='/blog/'+article['slug']+'/'
     title=article.get('title','')
