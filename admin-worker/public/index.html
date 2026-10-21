@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>정보세상 관리자</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><div class="brand">정보<span>세상</span> <small>EDITOR</small></div><div id="account" hidden><span>관리자</span><button id="logout" type="button" class="quiet">로그아웃</button></div></header>
+<main>
+<section id="login-panel" class="login-panel" hidden><div class="welcome-icon">✦</div><h1>정보세상 관리자</h1><p>관리자 아이디와 비밀번호로 로그인하세요.</p><form id="login-form"><label>관리자 아이디<input name="username" autocomplete="username" required autofocus></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">로그인</button><p class="error" id="login-error" aria-live="polite"></p></form></section>
+<section id="app-panel" hidden>
+<div class="workspace-title"><div><p class="eyebrow">EDITORIAL WORKSPACE</p><h1>콘텐츠 관리</h1><p>글을 작성하면 GitHub에 저장되고 기존 Cloudflare Pages 사이트에 자동 반영됩니다.</p></div><button id="new-post" class="primary" type="button">+ 새 글 쓰기</button></div>
+<div class="workspace">
+<aside><h2>발행 글 목록</h2><div id="post-list">글 목록을 불러오는 중입니다.</div></aside>
+<section class="editor">
+<form id="post-form">
+<h2 id="editor-title">새 글 작성</h2>
+<div class="form-grid"><label>글 분류<select id="category"><option value="health">병원·건강</option><option value="law">법률</option><option value="interior">인테리어</option><option value="moving">이사·생활</option><option value="realestate">부동산</option><option value="finance">금융·경제</option><option value="tech">IT·디지털</option><option value="education">교육·취업</option><option value="travel">여행·취미</option><option value="general">비즈니스·기타</option><option value="dermatology">기존 피부과</option><option value="lifting">기존 리프팅</option><option value="skinbooster">기존 스킨부스터</option><option value="other">기존 기타 시술</option></select></label><label>핵심 키워드<input id="keyword" placeholder="예) 강남 이사 비용"></label></div>
+<p class="slug">예상 주소: <span id="slug-preview">키워드를 입력해 주세요.</span></p>
+<label>SEO 글 제목<input id="title" placeholder="강남 이사 비용 총정리 | 견적 비교와 준비사항" required></label>
+<label>검색 결과 소개글 (메타디스크립션)<textarea id="description" rows="3" placeholder="검색 결과에 표시될 약 100~150자의 요약을 작성하세요."></textarea></label>
+<div class="form-grid"><label>지역 (선택)<input id="region" placeholder="예) 강남"></label><label>세부 주제 (선택)<input id="procedure" placeholder="예) 이사 견적"></label></div>
+<div class="form-grid"><label>작성일<input id="date" type="date"></label><label>대표 이미지 주소<input id="thumbnail" placeholder="/assets/uploads/이미지.jpg"></label></div>
+<div class="upload"><label for="file-input">대표 또는 본문 이미지 업로드 (2MB 이하)</label><input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><button id="upload-btn" class="quiet" type="button">이미지 업로드</button><small>업로드하면 주소가 아래에 표시됩니다. 본문에 넣으려면 '본문에 삽입' 버튼을 클릭하세요.</small><div class="upload-result" id="upload-result"></div></div>
+<label>본문 (Markdown)<textarea id="body" rows="17" placeholder="## 소제목\n\n여기에 본문을 작성하세요.\n\n### 자주 묻는 질문\n\n답변을 작성하세요." required></textarea></label>
+<div class="form-grid"><label>발행 상태<select id="status"><option value="draft">임시저장 (사이트 미노출)</option><option value="published">홈페이지 공개</option></select></label><label class="check"><input id="seo_approved" type="checkbox" checked> 검색엔진 색인 허용</label></div>
+<div class="actions"><button type="submit" id="save-btn" class="primary">GitHub에 저장하기</button><span id="message" aria-live="polite"></span></div>
+</form>
+</section></div></section>
+</main><script src="/app.js" defer></script></body></html>
