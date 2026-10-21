@@ -41,30 +41,21 @@ function reset(){
 }
 $("new-post").addEventListener("click",()=>{reset();if(activeCategory!=="all")$("category").value=activeCategory;$("editor-title").scrollIntoView({behavior:"smooth",block:"start"});});
 function renderCategories(){
- const stats=$("category-stats");
- stats.replaceChildren();
- const counts={};for(const p of allPosts){const k=p.category||"general";counts[k]=(counts[k]||0)+1;}
+ const stats=$("category-stats");stats.replaceChildren();
+ const counts={};
+ for(const p of allPosts){const k=p.category||"general";counts[k]=(counts[k]||0)+1;}
  const options=[["all","전체 글"],...categories];
  for(const [key,label] of options){
-   const count=key==="all"?allPosts.length:(counts[key]||0);
-   const button=document.createElement("button");
-   button.type="button";button.className="category-stat"+(activeCategory===key?" selected":"");
+   const button=document.createElement("button");button.type="button";
+   button.className="category-stat"+(activeCategory===key?" selected":"");
    button.setAttribute("aria-pressed",String(activeCategory===key));
    const name=document.createElement("span");name.className="category-stat-label";name.textContent=label;
-   const num=document.createElement("strong");num.textContent=count.toLocaleString("ko-KR");
-   const unit=document.createElement("small");unit.textContent="개";
-   button.append(name,num,unit);
-   button.onclick=()=>{activeCategory=key;$("post-filter").value=key;renderCategories();renderPosts();};
+   const num=document.createElement("strong");num.className="category-stat-count";
+   num.textContent=String(key==="all"?allPosts.length:counts[key]||0);
+   button.append(name,num);
+   button.onclick=()=>{activeCategory=key;renderCategories();renderPosts();};
    stats.appendChild(button);
  }
- const filter=$("post-filter");
- const prev=filter.value;
- filter.replaceChildren();
- for(const [key,label] of options){
-   const option=document.createElement("option");option.value=key;option.textContent=label+" ("+(key==="all"?allPosts.length:(counts[key]||0))+")";
-   filter.appendChild(option);
- }
- filter.value=options.some(x=>x[0]===activeCategory)?activeCategory:"all";
 }
 function renderPosts(){
  const root=$("post-list");root.replaceChildren();
@@ -96,7 +87,6 @@ async function list(force=false){
  }catch(e){root.textContent="글 목록을 불러오지 못했습니다: "+e.message;throw e;}
 }
 $("post-search").addEventListener("input",renderPosts);
-$("post-filter").addEventListener("change",e=>{activeCategory=e.target.value;renderCategories();renderPosts();});
 $("status-filter").addEventListener("change",renderPosts);
 $("refresh-posts").addEventListener("click",()=>list(true).catch(err=>alert(err.message)));
 async function deletePost(file,sha,title){
