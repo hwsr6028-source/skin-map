@@ -15,7 +15,7 @@ def url(row):return '/region/'+row['region_slug']+'/'+(row['procedure_slug']+'/'
 def link(row):return '<a class="tile" href="'+url(row)+'"><span class="eyebrow">'+('시술 가이드' if row['type']=='procedure' else '지역 가이드')+'</span><strong>'+esc(row['region']+row['procedure'] if row['type']=='procedure' else row['region']+'피부과')+'</strong><small>가이드 보기 ↗</small></a>'
 # Blog-only floating inquiry shortcuts. A valid phone number activates the call button.
 KAKAO_CHAT_URL='https://open.kakao.com/o/scHdSpTi'
-CONTACT_PHONE=''.join(ch for ch in os.environ.get('CONTACT_PHONE','') if ch.isdigit() or ch=='+')
+CONTACT_PHONE=''.join(ch for ch in os.environ.get('CONTACT_PHONE','01082536028') if ch.isdigit() or ch=='+')
 def blog_floating_contact(path):
  if not path.startswith('/blog/'): return ''
  kakao='<a class="float-contact-item float-contact-kakao" href="'+KAKAO_CHAT_URL+'" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 오픈채팅으로 광고 상담하기"><span class="float-contact-symbol" aria-hidden="true">TALK</span><span>카톡상담</span></a>'
