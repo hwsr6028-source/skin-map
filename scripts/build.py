@@ -289,7 +289,7 @@ rss_items=[]
 for post in sorted((p for p in posts if p.get('seo_approved') is True),key=lambda p:(str(p.get('updated_at') or p.get('date') or ''),str(p.get('slug') or '')),reverse=True)[:50]:
     loc=DOMAIN+'/blog/'+quote(post['slug'],safe='-')+'/'
     title=esc(post.get('title') or post.get('keyword') or '정보세상 콘텐츠')
-    description=esc(str(post.get('description') or post.get('body') or '')[:450])
+    description=esc(str(post.get('body') or post.get('description') or '')[:20000])
     date_raw=str(post.get('updated_at') or post.get('date') or '').strip()
     try:
         moment=datetime.datetime.fromisoformat(date_raw.replace('Z','+00:00'))
