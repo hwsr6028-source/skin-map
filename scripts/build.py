@@ -91,15 +91,20 @@ for f in sorted((ROOT/'content'/'posts').glob('*.json')):
         print('Skipped post',f.name,':',e)
 # Featured blog cards and static category / pagination pages
 from urllib.parse import unquote
-CATEGORIES={'health':'병원·건강','law':'법률','interior':'인테리어','moving':'이사·생활','realestate':'부동산','finance':'금융·경제','tech':'IT·디지털','education':'교육·취업','travel':'여행·취미','general':'비즈니스·기타','dermatology':'피부과 정보','lifting':'리프팅','skinbooster':'스킨부스터','other':'기타 시술'}
+CATEGORIES={'health':'병원·건강','law':'법률','interior':'인테리어','moving':'이사·생활','realestate':'부동산','finance':'금융·경제','tech':'IT·디지털','education':'교육·취업','travel':'여행·취미','general':'비즈니스·기타','fortune':'점집','tattoo':'타투','shopping':'구매대행','supplements':'건강식품'}
 PAGE_SIZE=9
 def category_of(post):
     val=str(post.get('category','')).strip()
     if val in CATEGORIES:return val
+    # Older category identifiers remain readable without misleadingly renaming old content.
+    if val in ('dermatology','lifting','skinbooster'):return 'health'
+    if val=='other':return 'general'
     subject=str(post.get('procedure',''))+' '+str(post.get('title',''))
-    if any(w in subject for w in ('울쎄라','써마지','온다','볼뉴머','슈링크','리프팅','덴서티','텐서마')):return 'lifting'
-    if any(w in subject for w in ('리쥬란','쥬베룩','스킨부스터','리투오','물광','엑소좀')):return 'skinbooster'
-    if any(w in subject for w in ('피부과','피부','시술','병원')):return 'health'
+    if any(w in subject for w in ('점집','사주','운세','타로','신점','철학관')):return 'fortune'
+    if any(w in subject for w in ('타투','문신','반영구','타투이스트')):return 'tattoo'
+    if any(w in subject for w in ('구매대행','해외직구','배송대행','수입대행')):return 'shopping'
+    if any(w in subject for w in ('건강식품','영양제','건강기능식품','비타민','유산균')):return 'supplements'
+    if any(w in subject for w in ('피부과','피부','시술','병원','울쎄라','써마지','리쥬란','리프팅')):return 'health'
     return 'general'
 def image_url(value):
     v=str(value or '').strip()
@@ -120,7 +125,11 @@ COVER_PALETTES={
  'tech':('#efeffa','#4a548a','#ced0ef','TECH'),
  'education':('#f8eee8','#8b5843','#eed3c5','EDUCATION'),
  'travel':('#e9f4f9','#386e84','#c0dfeb','TRAVEL'),
- 'general':('#eef3ef','#375e4c','#cadfd0','INFORMATION')
+ 'general':('#eef3ef','#375e4c','#cadfd0','INFORMATION'),
+ 'fortune':('#f1eafa','#674c84','#dac8f1','FORTUNE'),
+ 'tattoo':('#edf0f3','#414f5d','#c9d1d9','TATTOO'),
+ 'shopping':('#f7efe8','#806044','#e7cdb2','GLOBAL SHOPPING'),
+ 'supplements':('#e8f4ed','#376e50','#bee1ca','WELLNESS')
 }
 def auto_cover(post):
     title=str(post.get('title') or post.get('keyword') or '정보 가이드').strip()
@@ -179,7 +188,7 @@ def category_nav(active):
     links=[('<a class="'+('active' if not active else '')+'" href="/blog/">전체 <span>'+str(all_count)+'</span></a>')]
     for key,label in CATEGORIES.items():
         count=sum(category_of(p)==key for p in posts)
-        if key not in ('dermatology','lifting','skinbooster','other') or count:
+        if True:
             links.append('<a class="'+('active' if key==active else '')+'" href="'+listing_path(key,1)+'">'+esc(label)+' <span>'+str(count)+'</span></a>')
     return '<nav class="blog-filters" aria-label="블로그 카테고리">'+''.join(links)+'</nav>'
 def render_listing(category=''):
@@ -218,6 +227,10 @@ category_info=[
  ('education','교육·취업','교육·커리어','08'),
  ('travel','여행·취미','여행·라이프스타일','09'),
  ('general','비즈니스·기타','기타 업종','10'),
+ ('fortune','점집','운세·사주','11'),
+ ('tattoo','타투','타투·아트','12'),
+ ('shopping','구매대행','해외 구매 서비스','13'),
+ ('supplements','건강식품','건강식품·영양','14'),
 ]
 industry_tiles=''.join('<a class="agency-industry" href="/blog/category/'+key+'/"><span class="agency-industry-number">'+number+'</span><strong>'+esc(short)+'</strong><span class="agency-industry-arrow">↗</span></a>' for key,short,detail,number in category_info)
 agency_hero="""<section class="agency-hero"><div class="shell agency-hero-grid"><div class="agency-hero-copy"><span class="agency-kicker"><span class="agency-dot"></span> CONTENT MARKETING STUDIO · 정보세상</span><h1>검색에서 발견되고,<br><em>콘텐츠로 설득되는</em><br>브랜드를 만듭니다.</h1><p>키워드 전략부터 업종별 전문 원고, 자체 콘텐츠 발행과 SEO 운영까지.<br>브랜드의 이야기가 필요한 고객에게 닿도록 설계합니다.</p><div class="agency-hero-actions"><a class="agency-button" href="https://open.kakao.com/o/scHdSpTi" target="_blank" rel="noopener noreferrer">카카오톡 광고 문의 <span>↗</span></a><a class="agency-text-link" href="#services">서비스 알아보기 <span>↘</span></a></div><div class="agency-hero-small"><span>STRATEGY</span><span>CONTENT</span><span>SEO</span><span>GROWTH</span></div></div><div class="agency-visual" aria-label="콘텐츠 전략 프로세스 그래픽"><div class="visual-orbit orbit-a"></div><div class="visual-orbit orbit-b"></div><div class="agency-visual-head">INFORMATION<br>MEETS<br><span>IMPACT.</span></div><div class="visual-plate plate-top"><span>01 / RESEARCH</span><strong>Keyword Insight</strong><small>검색 의도 분석</small></div><div class="visual-plate plate-middle"><span>02 / CONTENT</span><strong>Editorial Strategy</strong><small>콘텐츠 기획·제작</small></div><div class="visual-plate plate-bottom"><span>03 / OPTIMIZE</span><strong>SEO &amp; Publishing</strong><small>발행 및 개선</small></div><div class="visual-decoration">✳</div></div></div></section>"""
