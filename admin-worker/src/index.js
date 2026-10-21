@@ -86,7 +86,7 @@ export default {
     const result=[];
     for(const f of (Array.isArray(list)?list:[]).filter(x=>x.name.endsWith(".json")).slice(0,500)){
       // The GitHub Contents API does not provide metadata in directory listings.
-      result.push({file:f.name});
+      result.push({file:f.name,sha:f.sha});
     }
     return json({posts:result});
    }
