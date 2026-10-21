@@ -6,6 +6,7 @@ const COOKIE = "info_world_session";
 const SESSION_AGE = 8 * 60 * 60; // server-side expiry; session cookie intentionally has no Max-Age.
 const MAX_BODY = 3 * 1024 * 1024;
 const tries = new Map(); // best-effort per isolate; use Cloudflare rate limiting for production.
+let postsCache=null; // Short-lived metadata cache to reduce repeat GitHub API calls.
 const json = (obj, status=200, extra={}) => new Response(JSON.stringify(obj), {status, headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff",...extra}});
 const safeEq = (a,b) => {
   if (a.length !== b.length) return false;
@@ -82,13 +83,30 @@ export default {
    if(path==="/api/me"&&req.method==="GET")return json({authenticated:await authenticated(req,env)});
    if(!(await authenticated(req,env)))return json({error:"로그인이 필요합니다."},401);
    if(path==="/api/posts"&&req.method==="GET"){
-    const list=await github(env,"GET","contents/content/posts?ref="+encodeURIComponent(env.GITHUB_BRANCH||"main"));
-    const result=[];
-    for(const f of (Array.isArray(list)?list:[]).filter(x=>x.name.endsWith(".json")).slice(0,500)){
-      // The GitHub Contents API does not provide metadata in directory listings.
-      result.push({file:f.name,sha:f.sha});
+    if(postsCache&&postsCache.repo===env.GITHUB_REPO&&postsCache.branch===(env.GITHUB_BRANCH||"main")&&Date.now()<postsCache.expires)
+      return json({posts:postsCache.posts});
+    const branch=env.GITHUB_BRANCH||"main";
+    const listing=await github(env,"GET","contents/content/posts?ref="+encodeURIComponent(branch));
+    const files=(Array.isArray(listing)?listing:[]).filter(x=>fileName(x.name));
+    // Read existing post metadata too: category, title, publication status and date.
+    // Bounded concurrency avoids bursts against GitHub's secondary rate limit.
+    const posts=[];
+    for(let i=0;i<files.length;i+=6){
+      const batch=await Promise.all(files.slice(i,i+6).map(async f=>{
+        try{
+          const r=await github(env,"GET","contents/content/posts/"+encodeURIComponent(f.name)+"?ref="+encodeURIComponent(branch));
+          const article=decodeFile(r.content);
+          const category=String(article.category||"general");
+          return {file:f.name,sha:r.sha,title:String(article.title||f.name),category,status:article.status==="published"?"published":"draft",date:String(article.date||"").slice(0,10)};
+        }catch{
+          return {file:f.name,sha:f.sha,title:f.name,category:"general",status:"unknown",date:"",metadataError:true};
+        }
+      }));
+      posts.push(...batch);
     }
-    return json({posts:result});
+    posts.sort((a,b)=>b.date.localeCompare(a.date)||a.title.localeCompare(b.title,"ko"));
+    postsCache={repo:env.GITHUB_REPO,branch,expires:Date.now()+90_000,posts};
+    return json({posts});
    }
    if(path==="/api/post"&&req.method==="GET"){
     const file=u.searchParams.get("file");
@@ -117,6 +135,7 @@ export default {
     }
     try{
       await github(env,"PUT","contents/content/posts/"+encodeURIComponent(file),args);
+      postsCache=null;
     }catch(e){
       if(e.status===422)throw {status:409,message:"이미 같은 키워드 주소의 글이 있습니다. 키워드를 변경하세요."};
       throw e;
@@ -133,6 +152,7 @@ export default {
       await github(env,"DELETE","contents/content/posts/"+encodeURIComponent(file),{
         message:"Delete article "+file,sha,branch:env.GITHUB_BRANCH||"main"
       });
+      postsCache=null;
     }catch(e){
       if(e.status===409||e.status===422)
         throw {status:409,message:"다른 변경사항이 있어 삭제하지 못했습니다. 글을 다시 불러온 뒤 시도해 주세요."};
