@@ -118,7 +118,7 @@ export default {
    }
    if(path==="/api/logout"&&req.method==="POST")return json({ok:true},200,{"set-cookie":cookieClear()});
    if(path==="/api/me"&&req.method==="GET")return json({authenticated:await authenticated(req,env)});
-   if(!(await authenticated(req,env)))return json({error:"로그인이 필요합니다."},401);
+   if(path!=="/api/sheet-import"&&!(await authenticated(req,env)))return json({error:"로그인이 필요합니다."},401);
    if(path==="/api/sheet-import"&&req.method==="POST"){
      if(!env.SHEET_IMPORT_KEY||String(env.SHEET_IMPORT_KEY).length<24)
        return json({error:"시트 연동 비밀키(SHEET_IMPORT_KEY)가 설정되지 않았습니다."},503);
