@@ -16,8 +16,8 @@
 <label>SEO 글 제목<input id="title" placeholder="강남 이사 비용 총정리 | 견적 비교와 준비사항" required></label>
 <label>검색 결과 소개글 (메타디스크립션)<textarea id="description" rows="3" placeholder="검색 결과에 표시될 약 100~150자의 요약을 작성하세요."></textarea></label>
 <div class="form-grid"><label>지역 (선택)<input id="region" placeholder="예) 강남"></label><label>세부 주제 (선택)<input id="procedure" placeholder="예) 이사 견적"></label></div>
-<div class="form-grid"><label>작성일<input id="date" type="date"></label><label>대표 이미지 주소<input id="thumbnail" placeholder="/assets/uploads/이미지.jpg"></label></div>
-<div class="upload"><label for="file-input">대표 또는 본문 이미지 업로드 (2MB 이하)</label><input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><button id="upload-btn" class="quiet" type="button">이미지 업로드</button><small>업로드하면 주소가 아래에 표시됩니다. 본문에 넣으려면 '본문에 삽입' 버튼을 클릭하세요.</small><div class="upload-result" id="upload-result"></div></div>
+<div class="form-grid"><label>작성일<input id="date" type="date"></label><label>대표 이미지 주소 (선택)<input id="thumbnail" placeholder="비워두면 제목·카테고리로 무료 자동 생성"></label></div>
+<p class="slug">✨ 대표 이미지가 없으면 저장 후 홈페이지 배포 시 제목과 카테고리로 자동 썸네일이 생성됩니다. 별도 비용이 들지 않습니다.</p><div class="upload"><label for="file-input">대표 또는 본문 이미지 업로드 (2MB 이하)</label><input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><button id="upload-btn" class="quiet" type="button">이미지 업로드</button><small>업로드하면 주소가 아래에 표시됩니다. 본문에 넣으려면 '본문에 삽입' 버튼을 클릭하세요.</small><div class="upload-result" id="upload-result"></div></div>
 <label>본문 (Markdown)<textarea id="body" rows="17" placeholder="## 소제목\n\n여기에 본문을 작성하세요.\n\n### 자주 묻는 질문\n\n답변을 작성하세요." required></textarea></label>
 <div class="form-grid"><label>발행 상태<select id="status"><option value="draft">임시저장 (사이트 미노출)</option><option value="published">홈페이지 공개</option></select></label><label class="check"><input id="seo_approved" type="checkbox" checked> 검색엔진 색인 허용</label></div>
 <div class="actions"><button type="submit" id="save-btn" class="primary">GitHub에 저장하기</button><span id="message" aria-live="polite"></span></div>
