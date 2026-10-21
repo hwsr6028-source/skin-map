@@ -77,7 +77,7 @@ function parseSheetDraft(raw,keyword){
  while(idx<lines.length&&removed<10){
    const line=lines[idx].trim();
    if(!line){idx++;removed++;continue;}
-   if(/^(?:핵심\s*키워드|키워드|메인\s*키워드|keyword)\s*[:：]/i.test(line)){idx++;removed++;continue;}
+   if(/^(?:핵심\s*키워드|키워드|메인\s*키워드|keyword)\s*[:：]/i.test(line)||line.normalize("NFC")===keyword.normalize("NFC")){idx++;removed++;continue;}
    if(/^(?:url|주소|글\s*주소|슬러그|slug)\s*[:：]/i.test(line)||/^https?:\/\//i.test(line)){idx++;removed++;continue;}
    if(/^(?:본문|원고|내용)\s*[:：]?\s*$/i.test(line)){idx++;removed++;continue;}
    break;
