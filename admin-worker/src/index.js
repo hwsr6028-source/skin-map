@@ -63,7 +63,7 @@ export default {
   if(!path.startsWith("/api/"))return env.ASSETS.fetch(req);
   if(!mustConfigure(env))return json({error:"관리자 비밀번호 또는 GitHub 저장용 토큰이 아직 설정되지 않았습니다."},503);
   try{
-   if(req.method==="POST"&&!sameOrigin(req))return json({error:"요청 출처가 올바르지 않습니다."},403);
+   if(["POST","DELETE"].includes(req.method)&&!sameOrigin(req))return json({error:"요청 출처가 올바르지 않습니다."},403);
    if(path==="/api/login"&&req.method==="POST"){
     const ip=req.headers.get("cf-connecting-ip")||"unknown";
     const entry=tries.get(ip)||{n:0,until:0};
@@ -122,6 +122,23 @@ export default {
       throw e;
     }
     return json({ok:true,file,url:"https://skin-map.pages.dev/blog/"+encodeURIComponent(slug)+"/"});
+   }
+   if(path==="/api/post"&&req.method==="DELETE"){
+    // Only authenticated admin may delete. GitHub requires current blob SHA.
+    const data=await input(req);
+    const file=data.file,sha=data.sha;
+    if(!fileName(file)||typeof sha!=="string"||!/^[a-f0-9]{40}$/.test(sha))
+      return json({error:"삭제할 글의 파일 정보가 올바르지 않습니다. 글을 다시 선택해 주세요."},400);
+    try{
+      await github(env,"DELETE","contents/content/posts/"+encodeURIComponent(file),{
+        message:"Delete article "+file,sha,branch:env.GITHUB_BRANCH||"main"
+      });
+    }catch(e){
+      if(e.status===409||e.status===422)
+        throw {status:409,message:"다른 변경사항이 있어 삭제하지 못했습니다. 글을 다시 불러온 뒤 시도해 주세요."};
+      throw e;
+    }
+    return json({ok:true,file});
    }
    if(path==="/api/upload"&&req.method==="POST"){
      const d=await input(req);
