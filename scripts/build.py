@@ -298,7 +298,7 @@ for post in sorted((p for p in posts if p.get('seo_approved') is True),key=lambd
         moment=datetime.datetime.now(datetime.timezone.utc)
     pub_date=format_datetime(moment)
     rss_items.append('<item><title>'+title+'</title><link>'+esc(loc)+'</link><guid isPermaLink="true">'+esc(loc)+'</guid><description>'+description+'</description><pubDate>'+pub_date+'</pubDate></item>')
-rss_xml='<?xml version="1.0" encoding="UTF-8"?>\\n<rss version="2.0"><channel>'
+rss_xml='<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>'
 rss_xml+='<title>정보세상 블로그</title><link>'+esc(DOMAIN+'/blog/')+'</link><description>정보세상 최신 콘텐츠와 생활 정보</description><language>ko</language>'
 rss_xml+=''.join(rss_items)+'</channel></rss>'
 (OUT/'rss.xml').write_text(rss_xml,encoding='utf8')
