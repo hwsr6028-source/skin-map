@@ -2,7 +2,8 @@ backend:
   name: github
   repo: hwsr6028-source/skin-map
   branch: main
-  auth_methods: [token]
+  base_url: https://sveltia-cms-auth.hwsr6028.workers.dev
+  auth_methods: [oauth, token]
 
 locale: ko
 site_url: https://skin-map.pages.dev
