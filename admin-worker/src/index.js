@@ -144,7 +144,7 @@ export default {
        title,keyword,slug,category:categoryFor(keyword,title),description,body,
        thumbnail:"",date,status:"draft",seo_approved:false,
        source:"google-sheets",source_sheet_id:String(d.sheetId||"").slice(0,80),
-       source_row:Number.isInteger(d.row)&&d.row>=1?d.row:null
+       source_row:Number.isInteger(d.row)&&d.row>=1?d.row:null,imported_at:new Date().toISOString()
      };
      try{
        await github(env,"PUT",filePath,{message:"Import Google Sheets draft: "+title,content:encodeFile(article),branch});
@@ -170,14 +170,14 @@ export default {
           const r=await github(env,"GET","contents/content/posts/"+encodeURIComponent(f.name)+"?ref="+encodeURIComponent(branch));
           const article=decodeFile(r.content);
           const category=String(article.category||"general");
-          return {file:f.name,sha:r.sha,title:String(article.title||f.name),category,status:article.status==="published"?"published":"draft",date:String(article.date||"").slice(0,10)};
+          return {file:f.name,sha:r.sha,title:String(article.title||f.name),category,status:article.status==="published"?"published":"draft",date:String(article.date||"").slice(0,10),latestAt:String(article.updated_at||article.imported_at||article.created_at||article.date||""),sourceRow:Number(article.source_row)||0};
         }catch{
           return {file:f.name,sha:f.sha,title:f.name,category:"general",status:"unknown",date:"",metadataError:true};
         }
       }));
       posts.push(...batch);
     }
-    posts.sort((a,b)=>b.date.localeCompare(a.date)||a.title.localeCompare(b.title,"ko"));
+    posts.sort((a,b)=>b.latestAt.localeCompare(a.latestAt)||b.sourceRow-a.sourceRow||b.date.localeCompare(a.date)||a.title.localeCompare(b.title,"ko"));
     postsCache={repo:env.GITHUB_REPO,branch,expires:Date.now()+90_000,posts};
     return json({posts});
    }
@@ -199,7 +199,7 @@ export default {
     const allowed=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","dermatology","lifting","skinbooster","other"]);
     const status=d.status==="published"?"published":"draft";
     const article={...d,slug,title,keyword,category:allowed.has(d.category)?d.category:"general",description:String(d.description||"").slice(0,500),
-      body:String(d.body),thumbnail:String(d.thumbnail||""),status,seo_approved:d.seo_approved===true,
+      body:String(d.body),thumbnail:String(d.thumbnail||""),status,seo_approved:d.seo_approved===true,updated_at:new Date().toISOString(),
       date:String(d.date||new Date().toISOString().slice(0,10)).slice(0,10)};
     const args={message:(editing?"Update ":"Publish ")+title,content:encodeFile(article),branch:env.GITHUB_BRANCH||"main"};
     if(editing){
