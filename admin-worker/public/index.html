@@ -20,8 +20,8 @@
 <div class="form-grid"><label>작성일<input id="date" type="date"></label><label>대표 이미지 주소 (선택)<input id="thumbnail" placeholder="비워두면 제목·카테고리로 무료 자동 생성"></label></div>
 <p class="slug">✨ 대표 이미지가 없으면 저장 후 홈페이지 배포 시 제목과 카테고리로 자동 썸네일이 생성됩니다. 별도 비용이 들지 않습니다.</p><div class="upload"><label for="file-input">대표 또는 본문 이미지 업로드 (2MB 이하)</label><input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><button id="upload-btn" class="quiet" type="button">이미지 업로드</button><small>업로드하면 주소가 아래에 표시됩니다. 본문에 넣으려면 '본문에 삽입' 버튼을 클릭하세요.</small><div class="upload-result" id="upload-result"></div></div>
 <label>본문 (Markdown)<textarea id="body" rows="17" placeholder="## 소제목\n\n여기에 본문을 작성하세요.\n\n### 자주 묻는 질문\n\n답변을 작성하세요." required></textarea></label>
-<div class="form-grid"><label>발행 상태<select id="status"><option value="draft">임시저장 (사이트 미노출)</option><option value="published">홈페이지 공개</option></select></label><label class="check"><input id="seo_approved" type="checkbox" checked> 검색엔진 색인 허용</label></div>
-<div class="actions"><button type="submit" id="save-btn" class="primary">GitHub에 저장하기</button><span id="message" aria-live="polite"></span></div>
+<div class="form-grid"><label>발행 상태<select id="status" disabled><option value="published" selected>저장 시 즉시 홈페이지 공개</option></select></label><label class="check"><input id="seo_approved" type="checkbox" checked disabled> 검색엔진 색인 허용 (자동)</label></div><p class="slug">저장하면 글이 공개되고 사이트맵에 자동 포함됩니다. 구글시트에서 자동 가져온 새 원고도 동일하게 공개됩니다. 실제 검색 색인까지는 검색엔진의 수집 시간이 필요합니다.</p>
+<div class="actions"><button type="submit" id="save-btn" class="primary">저장하고 홈페이지 공개하기</button><span id="message" aria-live="polite"></span></div>
 </form>
 </section></div></section>
 </main><script src="/app.js?v=20261021-categories2" defer></script></body></html>
