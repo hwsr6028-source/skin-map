@@ -146,3 +146,14 @@ footer{background:#101e15}
 .agency-about-top h1 em{font-style:normal;color:#537e4e}
 .agency-about-top p{font-size:16px;line-height:2;color:#6b7e6c;max-width:730px}
 @media(max-width:720px){.agency-about-top{padding:78px 0 88px}.agency-about-top h1{letter-spacing:-2px}.agency-about-top p{font-size:14px}}
+
+/* Fixed blog-only consultation shortcuts (desktop and mobile). */
+.floating-contact{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:45;display:flex;flex-direction:column;filter:drop-shadow(0 9px 18px rgba(24,38,30,.16));border-radius:15px;overflow:hidden}
+.float-contact-item{width:108px;min-height:102px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;text-align:center;font-size:14px;font-weight:800;line-height:1.25;transition:filter .2s,transform .2s}
+.float-contact-item:hover{filter:brightness(.96)}
+.float-contact-kakao{background:#fee500;color:#29220a}
+.float-contact-phone{background:#327fca;color:#fff}
+.float-contact-symbol{display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;border-radius:50%;background:#29220a;color:#fee500;font-size:9px;font-weight:900;letter-spacing:-.5px;position:relative}
+.float-contact-symbol:after{content:'';position:absolute;bottom:-4px;left:7px;border-width:5px 5px 0 0;border-style:solid;border-color:#29220a transparent transparent transparent}
+@media(max-width:850px){.floating-contact{right:12px;top:auto;bottom:20px;transform:none;flex-direction:row;border-radius:13px}.float-contact-item{width:88px;min-height:67px;gap:5px;font-size:11px}.float-contact-symbol{width:27px;height:23px;font-size:8px}.float-contact-phone svg{width:19px;height:19px}}
+@media(prefers-reduced-motion:reduce){.float-contact-item{transition:none}}
