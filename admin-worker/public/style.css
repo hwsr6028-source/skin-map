@@ -7,3 +7,12 @@
 .danger{background:#fff4f3;color:#af3535;border:1px solid #e9b2af;border-radius:9px;padding:11px 15px;cursor:pointer;font-weight:700}
 .danger:hover{background:#fce3e0}
 .danger:disabled{opacity:.5;cursor:wait}
+
+/* Existing posts: explicit edit/delete actions */
+.post-list-item{display:flex;flex-direction:column;gap:9px;padding:13px 0;border-bottom:1px solid #e8eee9}
+.post-list-name{font-size:12px;font-weight:700;color:#344b3b;overflow-wrap:anywhere;line-height:1.55}
+.post-list-actions{display:flex;gap:8px;align-items:center}
+.workspace aside .post-list-actions button{display:inline-flex;width:auto;flex:1;justify-content:center;text-align:center;padding:8px 10px;border-radius:7px;font-size:12px;font-weight:700;border:1px solid #d5e4d8;cursor:pointer}
+.workspace aside .post-list-edit{background:#eaf5ed;color:#25513a}
+.workspace aside .post-list-delete{background:#fff1ef;color:#a33a3a;border-color:#eed0ce}
+.workspace aside .post-list-delete:hover{background:#fce4e1}
