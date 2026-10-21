@@ -36,7 +36,7 @@ $("logout").addEventListener("click",async()=>{
 function reset(){
  editFile=null;editSha=null;editingSlug="";
  $("delete-post").hidden=true;
- $("post-form").reset();$("date").value=new Date().toISOString().slice(0,10);
+ $("post-form").reset();$("status").value="published";$("seo_approved").checked=true;$("date").value=new Date().toISOString().slice(0,10);
  $("editor-title").textContent="새 글 작성";$("message").textContent="";$("upload-result").textContent="";preview();
 }
 $("new-post").addEventListener("click",()=>{reset();if(activeCategory!=="all")$("category").value=activeCategory;$("editor-title").scrollIntoView({behavior:"smooth",block:"start"});});
@@ -110,7 +110,7 @@ async function openPost(file){
    // Legacy article categories remain editable, without showing retired categories in navigation.
    const legacy={dermatology:"health",lifting:"health",skinbooster:"health",other:"general"};
    if(legacy[data.article.category])$("category").value=legacy[data.article.category];
-   $("seo_approved").checked=data.article.seo_approved===true;
+   $("status").value="published";$("seo_approved").checked=true;
    $("editor-title").textContent="글 수정: "+(data.article.title||file);$("message").textContent="";preview();
    window.scrollTo({top:0,behavior:"smooth"});
  }catch(e){alert(e.message);}
@@ -121,7 +121,7 @@ $("delete-post").addEventListener("click",async()=>{
 $("post-form").addEventListener("submit",async e=>{
  e.preventDefault();const button=$("save-btn");button.disabled=true;$("message").textContent="저장 중...";
  const article={};for(const field of fields)article[field]=$(field).value;
- article.seo_approved=$("seo_approved").checked;
+ article.status="published";article.seo_approved=true;
  try{
   const proposed=normalize(article.keyword);
   if(editFile&&proposed!==editingSlug){
