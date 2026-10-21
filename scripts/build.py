@@ -252,6 +252,22 @@ save('/contact/',frame('광고·콘텐츠 제작 문의 | 정보세상','자체 
 about_body='<section class="agency-about-top"><div class="shell"><span class="agency-section-label">ABOUT / INFORMATION WORLD</span><h1>브랜드의 전문성을<br><em>검색 가능한 콘텐츠로.</em></h1><p>정보세상은 업종별 콘텐츠 기획과 제작, 검색 최적화에 집중하는 콘텐츠 기반 웹 프로젝트입니다. 필요한 정보를 찾는 이용자와 서비스를 소개하는 브랜드 사이에 도움이 되는 연결을 고민합니다.</p></div></section><section class="agency-section shell"><div class="agency-section-head"><div><span class="agency-section-label">OUR APPROACH</span><h2>정보의 정확성과<br>읽는 경험을 함께 생각합니다.</h2></div><p>고객의 검색 의도를 출발점으로 잡고, 각 업종에 맞는 정보를 구조화합니다.</p></div><div class="agency-process-grid"><div><span>01 / STRATEGY</span><strong>검색 의도 우선</strong><p>키워드만 반복하지 않고 질문에 답하는 콘텐츠를 설계합니다.</p></div><div><span>02 / EDITORIAL</span><strong>가독성과 흐름</strong><p>정보를 이해하기 쉬운 제목과 소제목, 이미지 구성으로 정리합니다.</p></div><div><span>03 / REVIEW</span><strong>사실관계 확인</strong><p>전문 분야는 신뢰할 수 있는 자료와 전문가 검토가 중요합니다.</p></div><div><span>04 / OPERATIONS</span><strong>지속적인 개선</strong><p>발행 이후에도 정보의 최신성과 검색 상태를 살펴봅니다.</p></div></div></section><section class="agency-contact-band"><div class="shell agency-contact-layout"><div><span class="agency-section-label">LET’S CONNECT</span><h2>브랜드의 이야기를<br>콘텐츠로 정리해 보세요.</h2></div><a class="agency-button" href="https://open.kakao.com/o/scHdSpTi" target="_blank" rel="noopener noreferrer">카카오톡 광고 문의 ↗</a></div></section>'
 save('/about/',frame('회사 소개 | 정보세상 콘텐츠 마케팅','정보세상의 콘텐츠 기획, 제작, SEO 운영 방식과 원칙을 소개합니다.','/about/',about_body))
 
+# Preserve discoverability after admin keyword / URL edits (Cloudflare Pages 301).
+redirects=[]
+current_slugs={p['slug'] for p in posts}
+for post in posts:
+    for old in post.get('previous_slugs',[]):
+        if not isinstance(old,str):continue
+        if not re.fullmatch(r'[가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]+(?:-[가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]+)*',old):continue
+        if old==post['slug'] or old in current_slugs:continue
+        source='/blog/'+quote(old,safe='-')+'/'
+        target='/blog/'+quote(post['slug'],safe='-')+'/'
+        redirects.append((source,target))
+if redirects:
+    unique={}
+    for src,dst in redirects:unique[src]=dst
+    (OUT/'_redirects').write_text(''.join(src+' '+dst+' 301\\n' for src,dst in unique.items()),encoding='utf8')
+
 (OUT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: '+DOMAIN+'/sitemap.xml\n',encoding='utf8')
 now=datetime.date.today().isoformat()
 # Generate a fresh sitemap on every deployment. Only public, indexing-approved posts are listed.
