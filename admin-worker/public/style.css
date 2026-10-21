@@ -16,3 +16,32 @@
 .workspace aside .post-list-edit{background:#eaf5ed;color:#25513a}
 .workspace aside .post-list-delete{background:#fff1ef;color:#a33a3a;border-color:#eed0ce}
 .workspace aside .post-list-delete:hover{background:#fce4e1}
+
+/* Editorial dashboard / categories / post management */
+.dashboard{background:#fff;border:1px solid #e0e8e2;border-radius:17px;padding:25px;margin:0 0 22px}
+.dashboard-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px}
+.dashboard-heading h2{font-size:20px;letter-spacing:-.5px;margin:0}
+.dashboard-heading p{font-size:12px;line-height:1.7;color:#7a8b80;margin:7px 0 0}
+.category-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.category-stat{display:flex;flex-direction:column;align-items:flex-start;min-height:108px;padding:16px;border:1px solid #e0e8e1;border-radius:12px;background:#f7faf7;cursor:pointer;text-align:left;position:relative}
+.category-stat:hover{border-color:#78aa85;background:#f2f8f3}
+.category-stat.selected{border:2px solid #316a4a;background:#eaf5ec;padding:15px}
+.category-stat-label{font-size:12px;color:#4c6655;font-weight:750}
+.category-stat strong{font-size:28px;margin-top:12px;line-height:1;font-variant-numeric:tabular-nums}
+.category-stat small{position:absolute;left:54px;bottom:16px;color:#85998a;font-size:11px}
+.list-heading h2{font-size:19px;margin:0}
+.list-heading h2 span{color:#479266;font-weight:700}
+.list-heading p{color:#849288;font-size:12px;line-height:1.6;margin:7px 0 15px}
+.search-label{font-size:12px;margin:13px 0}
+.search-label input,.search-label select{font-weight:500}
+.post-list-item{padding:15px 0}
+.post-list-name{display:block;font-size:13px;line-height:1.55;letter-spacing:-.15px;color:#263e2d}
+.post-list-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:9px 0}
+.post-list-meta span{font-size:10px;color:#75877a}
+.post-list-meta .status-live,.post-list-meta .status-draft{padding:3px 7px;border-radius:5px;font-weight:700}
+.post-list-meta .status-live{background:#e8f5eb;color:#32684b}
+.post-list-meta .status-draft{background:#f2eee7;color:#886e43}
+.empty-post-list{font-size:13px;line-height:1.8;color:#7e8c82}
+@media(max-width:1050px){.category-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:850px){.category-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.dashboard-heading{align-items:flex-start;flex-direction:column}.workspace aside{max-height:unset;overflow:visible}}
+@media(max-width:500px){.category-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard{padding:17px}.category-stat{min-height:99px}.category-stat strong{font-size:24px}.category-stat small{left:46px}.dashboard-heading h2{font-size:18px}}
