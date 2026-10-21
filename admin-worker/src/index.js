@@ -49,6 +49,43 @@ async function github(env,method,path,body){
   if(!result.ok)throw {status:result.status,message:data.message||"GitHub 요청 오류"};
   return data;
 }
+const IMPORT_CATEGORIES=[
+ ["moving",/이사|포장이사|이삿짐|용달|입주청소|청소업체|폐기물|생활서비스/],
+ ["education",/학원|과외|수학|영어교육|초등|중등|고등|입시|교육|유학|취업|자격증/],
+ ["law",/법률|변호사|법무사|소송|계약분쟁|이혼|형사|민사|상속|개인회생/],
+ ["interior",/인테리어|리모델링|도배|장판|욕실|주방공사|싱크대|타일/],
+ ["realestate",/부동산|전세|월세|아파트|분양|매매|공인중개/],
+ ["finance",/금융|경제|보험|대출|세금|주식|투자|절세/],
+ ["tech",/IT|디지털|스마트폰|컴퓨터|노트북|앱|소프트웨어|AI|인공지능/i],
+ ["travel",/여행|관광|캠핑|호텔|항공|숙박/],
+ ["health",/병원|건강|피부과|성형|치과|의원|의료|시술|한의원|리프팅|스킨부스터/]
+];
+function categoryFor(keyword,title){
+  const subject=String(keyword||"")+" "+String(title||"");
+  return IMPORT_CATEGORIES.find(([k,re])=>re.test(subject))?.[0]||"general";
+}
+function parseSheetDraft(raw,keyword){
+ const lines=String(raw||"").replace(/\r\n?/g,"\n").split("\n");
+ // Generated layout: title, core keyword, URL, then prose.
+ const first=lines.findIndex(l=>l.trim().length>0);
+ if(first<0)throw {status:422,message:"완성된 원고가 없습니다."};
+ const clean=x=>String(x||"").trim().replace(/^(?:[#*]+\s*)?(?:제목|title)\s*[:：]\s*/i,"").trim();
+ const title=clean(lines[first]).slice(0,180);
+ let idx=first+1;
+ // Only discard metadata at the top, never 'url' or keyword mentions in body paragraphs.
+ let removed=0;
+ while(idx<lines.length&&removed<10){
+   const line=lines[idx].trim();
+   if(!line){idx++;removed++;continue;}
+   if(/^(?:핵심\s*키워드|키워드|메인\s*키워드|keyword)\s*[:：]/i.test(line)){idx++;removed++;continue;}
+   if(/^(?:url|주소|글\s*주소|슬러그|slug)\s*[:：]/i.test(line)||/^https?:\/\//i.test(line)){idx++;removed++;continue;}
+   if(/^(?:본문|원고|내용)\s*[:：]?\s*$/i.test(line)){idx++;removed++;continue;}
+   break;
+ }
+ const body=lines.slice(idx).join("\n").trim();
+ if(title.length<3||body.length<80||!keyword)throw {status:422,message:"제목/키워드/본문이 부족하여 가져오지 않았습니다."};
+ return {title,body};
+}
 const fileName = n => typeof n==="string" && /^[가-힣a-z0-9][가-힣a-z0-9-]{0,150}\.json$/.test(n);
 const slugify = x => String(x||"").toLowerCase().normalize("NFC").trim().replace(/\s+/g,"-").replace(/[^가-힣a-z0-9-]/g,"").replace(/-+/g,"-").replace(/^-|-$/g,"").slice(0,130);
 function decodeFile(b64){return JSON.parse(dec.decode(Uint8Array.from(atob(b64.replace(/\s/g,"")),c=>c.charCodeAt(0))));}
@@ -64,7 +101,7 @@ export default {
   if(!path.startsWith("/api/"))return env.ASSETS.fetch(req);
   if(!mustConfigure(env))return json({error:"관리자 비밀번호 또는 GitHub 저장용 토큰이 아직 설정되지 않았습니다."},503);
   try{
-   if(["POST","DELETE"].includes(req.method)&&!sameOrigin(req))return json({error:"요청 출처가 올바르지 않습니다."},403);
+   if(["POST","DELETE"].includes(req.method)&&path!=="/api/sheet-import"&&!sameOrigin(req))return json({error:"요청 출처가 올바르지 않습니다."},403);
    if(path==="/api/login"&&req.method==="POST"){
     const ip=req.headers.get("cf-connecting-ip")||"unknown";
     const entry=tries.get(ip)||{n:0,until:0};
@@ -82,6 +119,42 @@ export default {
    if(path==="/api/logout"&&req.method==="POST")return json({ok:true},200,{"set-cookie":cookieClear()});
    if(path==="/api/me"&&req.method==="GET")return json({authenticated:await authenticated(req,env)});
    if(!(await authenticated(req,env)))return json({error:"로그인이 필요합니다."},401);
+   if(path==="/api/sheet-import"&&req.method==="POST"){
+     if(!env.SHEET_IMPORT_KEY||String(env.SHEET_IMPORT_KEY).length<24)
+       return json({error:"시트 연동 비밀키(SHEET_IMPORT_KEY)가 설정되지 않았습니다."},503);
+     const provided=String(req.headers.get("x-import-key")||"");
+     if(!provided||!(safeEq(await digest(provided),await digest(env.SHEET_IMPORT_KEY))))
+       return json({error:"시트 연동 인증 실패"},401);
+     const d=await input(req);
+     const keyword=String(d.keyword||"").normalize("NFC").trim().slice(0,140);
+     const slug=slugify(keyword);
+     if(!slug||!fileName(slug+".json"))return json({error:"B열 키워드로 URL을 만들 수 없습니다."},422);
+     const {title,body}=parseSheetDraft(d.content,keyword);
+     const file=slug+".json";
+     const branch=env.GITHUB_BRANCH||"main";
+     const filePath="contents/content/posts/"+encodeURIComponent(file);
+     // Protect all existing posts, including drafts, from being overwritten.
+     try{
+       await github(env,"GET",filePath+"?ref="+encodeURIComponent(branch));
+       return json({ok:true,result:"exists",file,message:"같은 키워드의 기존 글이 있어 건너뛰었습니다."});
+     }catch(e){if(e.status!==404)throw e;}
+     const date=/^\d{4}-\d{2}-\d{2}$/.test(String(d.date||""))?String(d.date):new Date().toISOString().slice(0,10);
+     const description=body.replace(/[#*\[\]<>]/g,"").replace(/\s+/g," ").slice(0,150);
+     const article={
+       title,keyword,slug,category:categoryFor(keyword,title),description,body,
+       thumbnail:"",date,status:"draft",seo_approved:false,
+       source:"google-sheets",source_sheet_id:String(d.sheetId||"").slice(0,80),
+       source_row:Number.isInteger(d.row)&&d.row>=1?d.row:null
+     };
+     try{
+       await github(env,"PUT",filePath,{message:"Import Google Sheets draft: "+title,content:encodeFile(article),branch});
+       postsCache=null;
+     }catch(e){
+       if(e.status===422||e.status===409)return json({ok:false,error:"중복 등록 충돌: 다시 시도 전에 관리자 목록을 확인해 주세요."},409);
+       throw e;
+     }
+     return json({ok:true,result:"created",file,category:article.category});
+   }
    if(path==="/api/posts"&&req.method==="GET"){
     if(u.searchParams.get("refresh")!=="1"&&postsCache&&postsCache.repo===env.GITHUB_REPO&&postsCache.branch===(env.GITHUB_BRANCH||"main")&&Date.now()<postsCache.expires)
       return json({posts:postsCache.posts});
