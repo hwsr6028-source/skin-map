@@ -11,7 +11,7 @@ const api=async (path,opts={})=>{
 };
 const normalize=x=>String(x||"").toLowerCase().normalize("NFC").trim().replace(/\s+/g,"-").replace(/[^가-힣a-z0-9-]/g,"").replace(/-+/g,"-").replace(/^-|-$/g,"").slice(0,130);
 function preview(){
- const slug=editFile?editingSlug:normalize($("keyword").value);
+ const slug=normalize($("keyword").value)||(!editFile?"":editingSlug);
  $("slug-preview").textContent=slug?"https://skin-map.pages.dev/blog/"+slug+"/":"키워드를 입력해 주세요.";
 }
 $("keyword").addEventListener("input",preview);
@@ -121,8 +121,12 @@ $("delete-post").addEventListener("click",async()=>{
 $("post-form").addEventListener("submit",async e=>{
  e.preventDefault();const button=$("save-btn");button.disabled=true;$("message").textContent="저장 중...";
  const article={};for(const field of fields)article[field]=$(field).value;
- article.seo_approved=$("seo_approved").checked;if(editFile)article.slug=editingSlug;
+ article.seo_approved=$("seo_approved").checked;
  try{
+  const proposed=normalize(article.keyword);
+  if(editFile&&proposed!==editingSlug){
+    if(!confirm("핵심키워드가 변경되어 게시글 URL도 바뀝니다.\n\n이전 주소: /blog/"+editingSlug+"/\n새 주소: /blog/"+proposed+"/\n\n기존 주소는 새 주소로 연결됩니다. 계속하시겠습니까?"))return;
+  }
   const r=await api("post",{method:"POST",body:JSON.stringify({file:editFile,sha:editSha,article})});
   $("message").textContent="저장 완료! 홈페이지 자동 배포가 시작됩니다.";
   await list(true);await openPost(r.file);
