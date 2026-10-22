@@ -177,12 +177,12 @@ export default {
           const category=legacyCategories[article.category]||String(article.category||"general");
           return {file:f.name,sha:r.sha,title:String(article.title||f.name),category,status:article.status==="published"?"published":"draft",date:String(article.date||"").slice(0,10),latestAt:String(article.updated_at||article.imported_at||article.created_at||article.date||""),sourceRow:Number(article.source_row)||0};
         }catch{
-          return {file:f.name,sha:f.sha,title:f.name,category:"general",status:"unknown",date:"",metadataError:true};
+          return {file:f.name,sha:f.sha,title:f.name,category:"general",status:"unknown",date:"",latestAt:"",sourceRow:0,metadataError:true};
         }
       }));
       posts.push(...batch);
     }
-    posts.sort((a,b)=>b.latestAt.localeCompare(a.latestAt)||b.sourceRow-a.sourceRow||b.date.localeCompare(a.date)||a.title.localeCompare(b.title,"ko"));
+    posts.sort((a,b)=>String(b.latestAt||"").localeCompare(String(a.latestAt||""))||((Number(b.sourceRow)||0)-(Number(a.sourceRow)||0))||String(b.date||"").localeCompare(String(a.date||""))||String(a.title||"").localeCompare(String(b.title||""),"ko"));
     postsCache={repo:env.GITHUB_REPO,branch,expires:Date.now()+90_000,posts};
     return json({posts});
    }
