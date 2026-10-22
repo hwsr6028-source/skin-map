@@ -172,7 +172,7 @@ async function loadAnalytics(){
   $("stat-kakao").textContent=statNumber(data.clicks?.kakao);
   $("stat-phone").textContent=statNumber(data.clicks?.phone);
   $("stat-article").textContent=statNumber(data.clicks?.article);
-  const daily=(data.daily||[]).map(x=>[String(x.date||"").replace(/^(\\d{4})(\\d{2})(\\d{2})$/,"$1-$2-$3"),statNumber(x.users),statNumber(x.views)]);
+  const daily=(data.daily||[]).map(x=>[String(x.date||"").replace(/^(\d{4})(\d{2})(\d{2})$/,"$1-$2-$3"),statNumber(x.users),statNumber(x.views)]);
   const pages=(data.pages||[]).map(x=>[x.path,statNumber(x.views)]);
   $("analytics-daily").replaceChildren(analyticsTable(["날짜","활성 사용자","조회수"],daily));
   $("analytics-pages").replaceChildren(analyticsTable(["페이지 주소","조회수"],pages));
