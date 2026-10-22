@@ -287,7 +287,7 @@ for key in ('',*CATEGORIES.keys()):
         sitemap_entries.append((listing_path(key,page_number),None))
 for x in posts:
     if x.get('seo_approved',False) is True:
-        sitemap_entries.append(('/blog/'+x['slug']+'/',str(x.get('date',''))[:10]))
+        sitemap_entries.append(('/blog/'+x['slug']+'/',str(x.get('updated_at') or x.get('imported_at') or x.get('created_at') or x.get('date') or '')[:10]))
 sitemap_xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
 for p,modified in sitemap_entries:
     loc=esc(DOMAIN+quote(p,safe='/'))
@@ -298,11 +298,11 @@ sitemap_xml+='</urlset>'
 
 # RSS 2.0 feed for Naver Search Advisor. Include only publicly available, indexable articles.
 rss_items=[]
-for post in sorted((p for p in posts if p.get('seo_approved') is True),key=lambda p:(str(p.get('updated_at') or p.get('date') or ''),str(p.get('slug') or '')),reverse=True)[:50]:
+for post in sorted((p for p in posts if p.get('seo_approved') is True),key=lambda p:(str(p.get('updated_at') or p.get('imported_at') or p.get('created_at') or p.get('date') or ''),str(p.get('slug') or '')),reverse=True)[:50]:
     loc=DOMAIN+'/blog/'+quote(post['slug'],safe='-')+'/'
     title=esc(post.get('title') or post.get('keyword') or '정보세상 콘텐츠')
     description=esc(str(post.get('body') or post.get('description') or '')[:20000])
-    date_raw=str(post.get('updated_at') or post.get('date') or '').strip()
+    date_raw=str(post.get('updated_at') or post.get('imported_at') or post.get('created_at') or post.get('date') or '').strip()
     try:
         moment=datetime.datetime.fromisoformat(date_raw.replace('Z','+00:00'))
         if moment.tzinfo is None:moment=moment.replace(tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
