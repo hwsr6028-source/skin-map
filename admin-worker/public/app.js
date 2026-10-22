@@ -180,6 +180,7 @@ async function loadAnalytics(){
   results.hidden=false;
  }catch(e){status.textContent="GA4 통계를 불러오지 못했습니다: "+e.message;setup.hidden=false;}
 }
+$("ga-connect").addEventListener("click",()=>{window.location.assign("/api/ga-oauth/start");});
 $("refresh-analytics").addEventListener("click",loadAnalytics);
 $("analytics-range").addEventListener("change",loadAnalytics);
 
