@@ -21,7 +21,7 @@ function showLogin(isLogged){
 async function load(){
  const me=await api("me");
  showLogin(me.authenticated);
- if(me.authenticated){await list();reset();}
+ if(me.authenticated){await list();reset();loadAnalytics();}
 }
 $("login-form").addEventListener("submit",async e=>{
  e.preventDefault();$("login-error").textContent="";
@@ -183,4 +183,4 @@ async function loadAnalytics(){
 $("refresh-analytics").addEventListener("click",loadAnalytics);
 $("analytics-range").addEventListener("change",loadAnalytics);
 
-load().then(()=>{if(!$("app-panel").hidden)loadAnalytics();}).catch(e=>{$("login-panel").hidden=false;$("login-error").textContent=e.message;});
+load().catch(e=>{$("login-panel").hidden=false;$("login-error").textContent=e.message;});
