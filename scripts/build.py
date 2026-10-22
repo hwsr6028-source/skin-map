@@ -179,7 +179,9 @@ for article in posts:
     title=article.get('title','')
     desc=article.get('description','')
     page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">'+esc(CATEGORIES[category_of(article)])+'</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
-    page+='<section class="shell article-grid"><article class="article">'+markdown_to_html(article.get('body',''))+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
+    cover=card_image(article)
+    cover_html='<figure class="article-cover"><img src="'+esc(cover)+'" alt="'+esc(title)+' 대표 이미지" width="1200" height="675" decoding="async"></figure>' if cover else ''
+    page+='<section class="shell article-grid"><article class="article">'+cover_html+markdown_to_html(article.get('body',''))+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
     save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False))))
 def listing_path(category,num):
     root='/blog/' if not category else '/blog/category/'+category+'/'
