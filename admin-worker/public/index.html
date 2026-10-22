@@ -1,12 +1,20 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>정보세상 관리자</title><link rel="stylesheet" href="/style.css?v=20261021-categories2"></head>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>정보세상 관리자</title><link rel="stylesheet" href="/style.css?v=20261022-analytics1"></head>
 <body>
 <header><div class="brand">정보<span>세상</span> <small>EDITOR</small></div><div id="account" hidden><span>관리자</span><button id="logout" type="button" class="quiet">로그아웃</button></div></header>
 <main>
 <section id="login-panel" class="login-panel" hidden><div class="welcome-icon">✦</div><h1>정보세상 관리자</h1><p>관리자 아이디와 비밀번호로 로그인하세요.</p><form id="login-form"><label>관리자 아이디<input name="username" autocomplete="username" required autofocus></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">로그인</button><p class="error" id="login-error" aria-live="polite"></p></form></section>
 <section id="app-panel" hidden>
 <div class="workspace-title"><div><p class="eyebrow">EDITORIAL WORKSPACE</p><h1>콘텐츠 관리</h1><p>글을 작성하면 GitHub에 저장되고 기존 Cloudflare Pages 사이트에 자동 반영됩니다.</p></div><button id="new-post" class="primary" type="button">+ 새 글 쓰기</button></div>
-<section class="analytics-shortcut" aria-label="방문 통계"><div><strong>방문·클릭 통계</strong><p>GA4에서 일별 방문자, 페이지 조회, 카카오톡·전화·게시글 클릭 이벤트를 확인하세요. 측정은 최신 홈페이지 배포 후부터 시작됩니다.</p></div><a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">Google Analytics 통계 열기 ↗</a></section>
+<section class="analytics-dashboard" aria-label="방문 및 클릭 통계">
+<div class="analytics-dashboard-head"><div><p class="eyebrow">WEBSITE ANALYTICS</p><h2>방문·클릭 통계</h2><p>정보세상 홈페이지 방문과 상담 링크 클릭을 한눈에 확인합니다.</p></div><div class="analytics-controls"><select id="analytics-range" aria-label="통계 기간"><option value="7">최근 7일</option><option value="30">최근 30일</option></select><button class="quiet" id="refresh-analytics" type="button">↻ 통계 새로고침</button></div></div>
+<div id="analytics-status" class="analytics-note" aria-live="polite">통계 연결 상태를 확인 중입니다.</div>
+<div id="analytics-results" hidden>
+<div class="analytics-kpis"><div><span>일별 활성 사용자 합계</span><strong id="stat-users">0</strong></div><div><span>페이지 조회수</span><strong id="stat-views">0</strong></div><div><span>카카오톡 클릭</span><strong id="stat-kakao">0</strong></div><div><span>전화 클릭</span><strong id="stat-phone">0</strong></div><div><span>글 링크 클릭</span><strong id="stat-article">0</strong></div></div>
+<div class="analytics-panels"><div><h3>일별 방문·조회</h3><div id="analytics-daily"></div></div><div><h3>조회수 상위 페이지</h3><div id="analytics-pages"></div></div></div>
+<p class="analytics-note">일별 활성 사용자 합계는 중복을 포함할 수 있어 기간 전체 고유 방문자 수와 다릅니다. GA4 집계에는 지연이 있을 수 있습니다.</p></div>
+<div id="analytics-setup" hidden><p>GA4 통계를 관리자에 표시하려면 읽기 전용 서비스 계정 연결이 필요합니다.</p><ol><li>Google Cloud에서 서비스 계정을 만들고 JSON 키를 발급합니다.</li><li>GA4 속성의 액세스 관리에서 서비스 계정 이메일을 <b>뷰어</b>로 추가합니다.</li><li>Cloudflare <b>info-world-admin</b> → 설정 → 변수 및 비밀에 <code>GA4_SERVICE_ACCOUNT_JSON</code> 이름으로 JSON 전체를 <b>비밀</b>로 저장합니다.</li></ol><p>키 파일은 채팅이나 공개 저장소에 올리지 마세요. <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">GA4 열기 ↗</a></p></div>
+</section>
 <section class="dashboard" aria-label="콘텐츠 현황"><div class="dashboard-heading"><div><h2>전체 글 · 카테고리별 관리</h2><p>분류를 선택하면 해당 글만 표시됩니다. 각 글에서 바로 수정하거나 삭제하세요.</p></div><button class="quiet" type="button" id="refresh-posts">↻ 목록 새로고침</button></div><nav class="category-stats" id="category-stats" aria-label="글 카테고리 필터">글 현황을 불러오는 중입니다.</nav></section>
 <div class="workspace">
 <aside><div class="list-heading"><h2>글 관리 <span id="filtered-count"></span></h2><p>작성한 글을 검색하고 수정하거나 삭제할 수 있습니다.</p></div><label class="search-label" for="post-search">글 검색<input id="post-search" type="search" placeholder="제목·키워드·파일명 검색"></label><label class="search-label" for="status-filter">발행 상태<select id="status-filter"><option value="all">전체 상태</option><option value="published">공개</option><option value="draft">임시저장</option></select></label><div id="post-list" aria-live="polite">글 목록을 불러오는 중입니다.</div></aside>
@@ -25,4 +33,4 @@
 <div class="actions"><button type="submit" id="save-btn" class="primary">저장하고 홈페이지 공개하기</button><span id="message" aria-live="polite"></span></div>
 </form>
 </section></div></section>
-</main><script src="/app.js?v=20261021-categories2" defer></script></body></html>
+</main><script src="/app.js?v=20261022-analytics1" defer></script></body></html>
