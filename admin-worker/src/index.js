@@ -261,6 +261,39 @@ export default {
      const clicks=Object.fromEntries(events.map(e=>[e.dims[0],e.metrics[0]]));
      return json({configured:true,range:u.searchParams.get("range")==="30"?30:7,daily:daily.map(r=>({date:r.dims[0],users:r.metrics[0],views:r.metrics[1]})),pages:pages.map(r=>({path:r.dims[0],views:r.metrics[0]})),clicks:{kakao:clicks.kakao_click||0,phone:clicks.phone_click||0,article:clicks.article_click||0},note:"일별 활성 사용자 합계는 기간 전체 고유 방문자 수와 다를 수 있습니다."});
    }
+   if(path==="/api/indexnow-status"&&req.method==="GET"){
+     // GitHub workflow execution results, not proof of Naver crawl or indexing.
+     const days=u.searchParams.get("days")==="30"?30:7;
+     const perPage=100;
+     const endpoint="https://api.github.com/repos/"+env.GITHUB_REPO+"/actions/workflows/naver-indexnow.yml/runs?branch="+encodeURIComponent(env.GITHUB_BRANCH||"main")+"&per_page="+perPage;
+     const headers={"accept":"application/vnd.github+json","user-agent":"info-world-admin","x-github-api-version":"2022-11-28"};
+     if(env.GITHUB_TOKEN)headers.authorization="Bearer "+env.GITHUB_TOKEN;
+     let response=await fetch(endpoint,{headers});
+     // Some fine-grained Contents-only tokens cannot read Actions. Public repositories allow anonymous reads.
+     if(response.status===403||response.status===404){const publicHeaders={...headers};delete publicHeaders.authorization;response=await fetch(endpoint,{headers:publicHeaders});}
+     if(!response.ok)return json({error:"GitHub 자동화 실행 기록을 조회하지 못했습니다 (HTTP "+response.status+"). Actions 조회 권한을 확인해 주세요."},502);
+     const data=await response.json();
+     const since=Date.now()-days*86400000;
+     const runs=(Array.isArray(data.workflow_runs)?data.workflow_runs:[]).filter(run=>Date.parse(run.created_at)>=since).map(run=>({
+       id:run.id,
+       title:String(run.display_title||run.head_commit?.message||"자동화 실행").slice(0,200),
+       sha:String(run.head_sha||"").slice(0,10),
+       status:String(run.status||"unknown"),
+       conclusion:run.conclusion||null,
+       date:run.created_at,
+       url:run.html_url,
+       event:run.event
+     }));
+     const counts={success:0,cancelled:0,failure:0,pending:0,other:0};
+     for(const item of runs){
+       if(item.status!=="completed")counts.pending++;
+       else if(item.conclusion==="success")counts.success++;
+       else if(item.conclusion==="cancelled")counts.cancelled++;
+       else if(item.conclusion==="failure"||item.conclusion==="timed_out")counts.failure++;
+       else counts.other++;
+     }
+     return json({days,runs,counts,limited:((data.total_count||0)>perPage),caveat:"GitHub Actions 성공은 네이버 IndexNow 전송/색인 성공과 동일하지 않습니다. 전송 HTTP 코드는 개별 실행 로그에서 확인해야 합니다."});
+   }
    if(path==="/api/posts"&&req.method==="GET"){
     if(u.searchParams.get("refresh")!=="1"&&postsCache&&postsCache.repo===env.GITHUB_REPO&&postsCache.branch===(env.GITHUB_BRANCH||"main")&&Date.now()<postsCache.expires)
       return json({posts:postsCache.posts});
