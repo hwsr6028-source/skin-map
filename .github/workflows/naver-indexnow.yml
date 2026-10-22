@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: indexnow-main
+  group: indexnow-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
