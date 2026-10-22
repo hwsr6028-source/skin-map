@@ -170,7 +170,7 @@ def blog_card(post):
     cat=CATEGORIES[category_of(post)]
     date=str(post.get('date',''))[:10]
     return '<a class="blog-card" href="'+path+'">'+pic+'<span class="blog-card-copy"><span class="blog-card-meta">'+esc(cat)+' · '+esc(date)+'</span><strong>'+esc(post.get('title',''))+'</strong><span class="blog-card-description">'+esc(post.get('description',''))+'</span><span class="blog-card-more">글 읽기 ↗</span></span></a>'
-posts.sort(key=lambda x:(str(x.get('date','')),str(x.get('title',''))),reverse=True)
+posts.sort(key=lambda x:(str(x.get('updated_at') or x.get('imported_at') or x.get('created_at') or x.get('date') or ''),str(x.get('date','')),str(x.get('title',''))),reverse=True)
 for post in posts:
     if not image_url(post.get('thumbnail')):
         post['_auto_cover']=auto_cover(post)
