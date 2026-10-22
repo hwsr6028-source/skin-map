@@ -149,4 +149,38 @@ $("upload-btn").addEventListener("click",async()=>{
  };
  reader.readAsDataURL(file);
 });
-load().catch(e=>{$("login-panel").hidden=false;$("login-error").textContent=e.message;});
+
+// Admin analytics is read-only. All counts are supplied by the authenticated Worker.
+const statNumber = n => new Intl.NumberFormat("ko-KR").format(Number(n)||0);
+function analyticsTable(headers,rows){
+ const table=document.createElement("table");table.className="analytics-table";
+ const thead=table.createTHead(),tr=thead.insertRow();
+ for(const h of headers){const th=document.createElement("th");th.textContent=h;tr.appendChild(th);}
+ const body=table.createTBody();
+ for(const row of rows){const tr=body.insertRow();for(const cell of row){const td=tr.insertCell();td.textContent=String(cell);}}
+ return table;
+}
+async function loadAnalytics(){
+ const status=$("analytics-status"),results=$("analytics-results"),setup=$("analytics-setup");
+ status.textContent="통계를 불러오는 중입니다.";results.hidden=true;setup.hidden=true;
+ try{
+  const data=await api("analytics?range="+encodeURIComponent($("analytics-range").value));
+  if(!data.configured){status.textContent=data.message||"연결 설정이 필요합니다.";setup.hidden=false;return;}
+  const total=(field)=>(data.daily||[]).reduce((sum,item)=>sum+(Number(item[field])||0),0);
+  $("stat-users").textContent=statNumber(total("users"));
+  $("stat-views").textContent=statNumber(total("views"));
+  $("stat-kakao").textContent=statNumber(data.clicks?.kakao);
+  $("stat-phone").textContent=statNumber(data.clicks?.phone);
+  $("stat-article").textContent=statNumber(data.clicks?.article);
+  const daily=(data.daily||[]).map(x=>[String(x.date||"").replace(/^(\\d{4})(\\d{2})(\\d{2})$/,"$1-$2-$3"),statNumber(x.users),statNumber(x.views)]);
+  const pages=(data.pages||[]).map(x=>[x.path,statNumber(x.views)]);
+  $("analytics-daily").replaceChildren(analyticsTable(["날짜","활성 사용자","조회수"],daily));
+  $("analytics-pages").replaceChildren(analyticsTable(["페이지 주소","조회수"],pages));
+  status.textContent="GA4 통계 연결됨 · 최근 "+data.range+"일 기준";
+  results.hidden=false;
+ }catch(e){status.textContent="GA4 통계를 불러오지 못했습니다: "+e.message;setup.hidden=false;}
+}
+$("refresh-analytics").addEventListener("click",loadAnalytics);
+$("analytics-range").addEventListener("change",loadAnalytics);
+
+load().then(()=>{if(!$("app-panel").hidden)loadAnalytics();}).catch(e=>{$("login-panel").hidden=false;$("login-error").textContent=e.message;});
