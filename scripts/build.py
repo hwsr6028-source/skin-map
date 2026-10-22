@@ -159,10 +159,12 @@ def auto_cover(post):
     (directory/(digest+'.svg')).write_text(svg,encoding='utf-8')
     return '/assets/covers/'+digest+'.svg'
 
+DEFAULT_INQUIRY_BANNER='/assets/uploads/default-inquiry-banner.svg'
 def card_image(post):
+    # An explicitly uploaded thumbnail always overrides the shared inquiry banner.
     cover=image_url(post.get('thumbnail',''))
     if cover:return cover
-    return post.get('_auto_cover') or auto_cover(post)
+    return DEFAULT_INQUIRY_BANNER
 def blog_card(post):
     img=card_image(post)
     pic=('<span class="blog-card-media"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'"></span>' if img else '<span class="blog-card-media blog-card-placeholder"><span>정보세상</span></span>')
@@ -171,9 +173,7 @@ def blog_card(post):
     date=str(post.get('date',''))[:10]
     return '<a class="blog-card" href="'+path+'">'+pic+'<span class="blog-card-copy"><span class="blog-card-meta">'+esc(cat)+' · '+esc(date)+'</span><strong>'+esc(post.get('title',''))+'</strong><span class="blog-card-description">'+esc(post.get('description',''))+'</span><span class="blog-card-more">글 읽기 ↗</span></span></a>'
 posts.sort(key=lambda x:(str(x.get('updated_at') or x.get('imported_at') or x.get('created_at') or x.get('date') or ''),str(x.get('date','')),str(x.get('title',''))),reverse=True)
-for post in posts:
-    if not image_url(post.get('thumbnail')):
-        post['_auto_cover']=auto_cover(post)
+# Articles without a custom thumbnail use the same branded inquiry banner.
 for article in posts:
     path='/blog/'+article['slug']+'/'
     title=article.get('title','')
