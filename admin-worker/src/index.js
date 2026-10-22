@@ -100,6 +100,48 @@ async function input(req){
 }
 function mustConfigure(env){return !!(env.ADMIN_PASSWORD&&env.GITHUB_TOKEN&&env.ADMIN_USERNAME&&env.GITHUB_REPO);}
 
+// GA4 keyless Google OAuth: refresh token encrypted in a secure, HttpOnly browser cookie.
+// No Google credential is ever written into GitHub or exposed to front-end JavaScript.
+const GA_OAUTH_COOKIE="iw_ga_oauth";
+const GA_STATE_COOKIE="iw_ga_state";
+const GA_OAUTH_TTL=90*24*60*60;
+function cookieValue(req,name){
+ const entry=(req.headers.get("cookie")||"").split(";").map(x=>x.trim()).find(x=>x.startsWith(name+"="));
+ return entry?entry.slice(name.length+1):"";
+}
+async function oauthCipher(env){
+ const material=await crypto.subtle.importKey("raw",enc.encode("ga4:oauth:v1:"+env.ADMIN_PASSWORD+":"+env.GITHUB_TOKEN),"HKDF",false,["deriveKey"]);
+ return crypto.subtle.deriveKey({name:"HKDF",hash:"SHA-256",salt:enc.encode("iw-ga-oauth-v1"),info:enc.encode("refresh-token")},material,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function encryptedOAuthToken(env,refreshToken){
+ const iv=crypto.getRandomValues(new Uint8Array(12));
+ const ciphertext=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},await oauthCipher(env),enc.encode(refreshToken)));
+ const combined=new Uint8Array(iv.length+ciphertext.length);combined.set(iv);combined.set(ciphertext,iv.length);
+ return b64u(combined);
+}
+async function decryptedOAuthToken(req,env){
+ const packed=cookieValue(req,GA_OAUTH_COOKIE);
+ if(!packed)return "";
+ try{
+  const combined=unb64u(packed);
+  if(combined.length<30)return "";
+  return dec.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:combined.slice(0,12)},await oauthCipher(env),combined.slice(12)));
+ }catch{return "";}
+}
+function gaOAuthReady(env){return !!(env.GA4_OAUTH_CLIENT_ID&&env.GA4_OAUTH_CLIENT_SECRET);}
+function gaRedirect(req){return new URL("/api/ga-oauth/callback",new URL(req.url).origin).href;}
+async function oauthAccessToken(req,env){
+ const refresh=await decryptedOAuthToken(req,env);
+ if(!refresh)throw {status:401,message:"GA4 Google 계정 연결이 필요합니다."};
+ const response=await fetch("https://oauth2.googleapis.com/token",{
+  method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},
+  body:new URLSearchParams({client_id:env.GA4_OAUTH_CLIENT_ID,client_secret:env.GA4_OAUTH_CLIENT_SECRET,refresh_token:refresh,grant_type:"refresh_token"})
+ });
+ const data=await response.json();
+ if(!response.ok||!data.access_token)throw {status:401,message:"GA4 Google 인증이 만료되었습니다. 계정을 다시 연결해 주세요."};
+ return data.access_token;
+}
+
 // Google Analytics Data API: server-to-server read-only access.
 // Store the whole service account JSON only as a Cloudflare secret (GA4_SERVICE_ACCOUNT_JSON).
 function b64url(bytes){return btoa(String.fromCharCode(...bytes)).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");}
@@ -152,7 +194,42 @@ export default {
    }
    if(path==="/api/logout"&&req.method==="POST")return json({ok:true},200,{"set-cookie":cookieClear()});
    if(path==="/api/me"&&req.method==="GET")return json({authenticated:await authenticated(req,env)});
+   if(path==="/api/ga-oauth/callback"&&req.method==="GET"){
+     if(!gaOAuthReady(env))return json({error:"OAuth 클라이언트 설정이 필요합니다."},503);
+     const state=u.searchParams.get("state")||"";
+     const nonce=cookieValue(req,GA_STATE_COOKIE);
+     if(!nonce||!state||nonce!==state)return json({error:"Google 로그인 확인값이 일치하지 않습니다. 관리자에서 다시 연결해 주세요."},403);
+     const code=u.searchParams.get("code");
+     if(!code)return json({error:"Google 계정 인증이 취소되었거나 거부되었습니다."},400);
+     const exchange=await fetch("https://oauth2.googleapis.com/token",{
+       method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},
+       body:new URLSearchParams({code,client_id:env.GA4_OAUTH_CLIENT_ID,client_secret:env.GA4_OAUTH_CLIENT_SECRET,redirect_uri:gaRedirect(req),grant_type:"authorization_code"})
+     });
+     const response=await exchange.json();
+     if(!exchange.ok||!response.refresh_token)return json({error:"Google 인증에 실패했거나 갱신 토큰이 제공되지 않았습니다. 다시 연결해 주세요."},400);
+     const secured=await encryptedOAuthToken(env,response.refresh_token);
+     const headers=new Headers({"location":"/?ga_connected=1","cache-control":"no-store"});
+     headers.append("set-cookie",GA_OAUTH_COOKIE+"="+secured+"; Path=/api; Secure; HttpOnly; SameSite=Lax; Max-Age="+GA_OAUTH_TTL);
+     headers.append("set-cookie",GA_STATE_COOKIE+"=; Path=/api; Secure; HttpOnly; SameSite=Lax; Max-Age=0");
+     return new Response(null,{status:302,headers});
+   }
+
    if(path!=="/api/sheet-import"&&!(await authenticated(req,env)))return json({error:"로그인이 필요합니다."},401);
+   if(path==="/api/ga-oauth/status"&&req.method==="GET")
+     return json({configured:gaOAuthReady(env),connected:!!(await decryptedOAuthToken(req,env))});
+   if(path==="/api/ga-oauth/start"&&req.method==="GET"){
+     if(!gaOAuthReady(env))return json({error:"Cloudflare에 GA4_OAUTH_CLIENT_ID와 GA4_OAUTH_CLIENT_SECRET을 먼저 등록해 주세요."},503);
+     const state=b64u(crypto.getRandomValues(new Uint8Array(32)));
+     const params=new URLSearchParams({client_id:env.GA4_OAUTH_CLIENT_ID,redirect_uri:gaRedirect(req),response_type:"code",scope:"https://www.googleapis.com/auth/analytics.readonly",access_type:"offline",prompt:"consent select_account",state});
+     const headers=new Headers({"location":"https://accounts.google.com/o/oauth2/v2/auth?"+params,"cache-control":"no-store"});
+     headers.append("set-cookie",GA_STATE_COOKIE+"="+state+"; Path=/api; Secure; HttpOnly; SameSite=Lax; Max-Age=600");
+     return new Response(null,{status:302,headers});
+   }
+   if(path==="/api/ga-oauth/disconnect"&&req.method==="POST"){
+     const headers=new Headers({"content-type":"application/json","cache-control":"no-store"});
+     headers.append("set-cookie",GA_OAUTH_COOKIE+"=; Path=/api; Secure; HttpOnly; SameSite=Lax; Max-Age=0");
+     return new Response(JSON.stringify({ok:true}),{status:200,headers});
+   }
    if(path==="/api/sheet-import"&&req.method==="POST"){
      if(!env.SHEET_IMPORT_KEY||String(env.SHEET_IMPORT_KEY).length<24)
        return json({error:"시트 연동 비밀키(SHEET_IMPORT_KEY)가 설정되지 않았습니다."},503);
@@ -190,10 +267,11 @@ export default {
      return json({ok:true,result:"created",file,category:article.category});
    }
    if(path==="/api/analytics"&&req.method==="GET"){
-     if(!env.GA4_SERVICE_ACCOUNT_JSON)return json({configured:false,message:"GA4 조회용 서비스 계정 연결이 필요합니다. 관리자에서 연결 방법을 확인해 주세요."});
+     if(!gaOAuthReady(env))return json({configured:false,message:"Google OAuth 클라이언트 연결 설정이 필요합니다."});
+     if(!(await decryptedOAuthToken(req,env)))return json({configured:false,message:"Google 계정을 연결해 주세요."});
      const range=u.searchParams.get("range")==="30"?"30daysAgo":"7daysAgo";
      const dates=[{startDate:range,endDate:"today"}];
-     const token=await gaAccessToken(env);
+     const token=await oauthAccessToken(req,env);
      const [daily,pages,events]=await Promise.all([
        gaReport(env,token,{dateRanges:dates,dimensions:[{name:"date"}],metrics:[{name:"activeUsers"},{name:"screenPageViews"}],orderBys:[{dimension:{dimensionName:"date"}}],limit:"31"}),
        gaReport(env,token,{dateRanges:dates,dimensions:[{name:"pagePath"}],metrics:[{name:"screenPageViews"}],orderBys:[{metric:{metricName:"screenPageViews"},desc:true}],limit:"15"}),
