@@ -1,0 +1,30 @@
+name: Notify Naver IndexNow on new articles
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'content/posts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: indexnow-main
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout posts and history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Submit newly added and updated public posts after site deployment
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/notify_indexnow.py
