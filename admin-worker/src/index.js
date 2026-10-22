@@ -99,6 +99,36 @@ async function input(req){
   return req.json().catch(()=>{throw {status:400,message:"입력 형식 오류"};});
 }
 function mustConfigure(env){return !!(env.ADMIN_PASSWORD&&env.GITHUB_TOKEN&&env.ADMIN_USERNAME&&env.GITHUB_REPO);}
+
+// Google Analytics Data API: server-to-server read-only access.
+// Store the whole service account JSON only as a Cloudflare secret (GA4_SERVICE_ACCOUNT_JSON).
+function b64url(bytes){return btoa(String.fromCharCode(...bytes)).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");}
+async function gaAccessToken(env){
+ const secret=JSON.parse(env.GA4_SERVICE_ACCOUNT_JSON);
+ if(!secret.client_email||!secret.private_key)throw Error("GA4 서비스 계정 비밀키 형식이 올바르지 않습니다.");
+ const pem=secret.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,"");
+ const binary=atob(pem), bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+ const key=await crypto.subtle.importKey("pkcs8",bytes,{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["sign"]);
+ const now=Math.floor(Date.now()/1000);
+ const head=b64url(enc.encode(JSON.stringify({alg:"RS256",typ:"JWT"})));
+ const body=b64url(enc.encode(JSON.stringify({iss:secret.client_email,scope:"https://www.googleapis.com/auth/analytics.readonly",aud:"https://oauth2.googleapis.com/token",iat:now,exp:now+3000})));
+ const raw=head+"."+body;
+ const sig=await crypto.subtle.sign("RSASSA-PKCS1-v1_5",key,enc.encode(raw));
+ const assertion=raw+"."+b64url(new Uint8Array(sig));
+ const response=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion})});
+ const data=await response.json();
+ if(!response.ok||!data.access_token)throw Error("Google 인증에 실패했습니다. 서비스 계정 키와 권한을 확인해 주세요.");
+ return data.access_token;
+}
+async function gaReport(env,token,body){
+ const property=String(env.GA4_PROPERTY_ID||"560092337");
+ if(!/^\d{6,20}$/.test(property))throw Error("GA4_PROPERTY_ID 설정이 올바르지 않습니다.");
+ const response=await fetch("https://analyticsdata.googleapis.com/v1beta/properties/"+property+":runReport",{method:"POST",headers:{"authorization":"Bearer "+token,"content-type":"application/json"},body:JSON.stringify(body)});
+ const data=await response.json();
+ if(!response.ok)throw Error("GA4 조회 실패: "+String(data.error?.message||response.status).slice(0,260));
+ return (data.rows||[]).map(row=>({dims:(row.dimensionValues||[]).map(x=>x.value),metrics:(row.metricValues||[]).map(x=>Number(x.value)||0)}));
+}
+
 export default {
  async fetch(req,env){
   const u=new URL(req.url),path=u.pathname;
@@ -158,6 +188,19 @@ export default {
        throw e;
      }
      return json({ok:true,result:"created",file,category:article.category});
+   }
+   if(path==="/api/analytics"&&req.method==="GET"){
+     if(!env.GA4_SERVICE_ACCOUNT_JSON)return json({configured:false,message:"GA4 조회용 서비스 계정 연결이 필요합니다. 관리자에서 연결 방법을 확인해 주세요."});
+     const range=u.searchParams.get("range")==="30"?"30daysAgo":"7daysAgo";
+     const dates=[{startDate:range,endDate:"today"}];
+     const token=await gaAccessToken(env);
+     const [daily,pages,events]=await Promise.all([
+       gaReport(env,token,{dateRanges:dates,dimensions:[{name:"date"}],metrics:[{name:"activeUsers"},{name:"screenPageViews"}],orderBys:[{dimension:{dimensionName:"date"}}],limit:"31"}),
+       gaReport(env,token,{dateRanges:dates,dimensions:[{name:"pagePath"}],metrics:[{name:"screenPageViews"}],orderBys:[{metric:{metricName:"screenPageViews"},desc:true}],limit:"15"}),
+       gaReport(env,token,{dateRanges:dates,dimensions:[{name:"eventName"}],metrics:[{name:"eventCount"}],dimensionFilter:{filter:{fieldName:"eventName",inListFilter:{values:["kakao_click","phone_click","article_click"]}}},limit:"10"})
+     ]);
+     const clicks=Object.fromEntries(events.map(e=>[e.dims[0],e.metrics[0]]));
+     return json({configured:true,range:u.searchParams.get("range")==="30"?30:7,daily:daily.map(r=>({date:r.dims[0],users:r.metrics[0],views:r.metrics[1]})),pages:pages.map(r=>({path:r.dims[0],views:r.metrics[0]})),clicks:{kakao:clicks.kakao_click||0,phone:clicks.phone_click||0,article:clicks.article_click||0},note:"일별 활성 사용자 합계는 기간 전체 고유 방문자 수와 다를 수 있습니다."});
    }
    if(path==="/api/posts"&&req.method==="GET"){
     if(u.searchParams.get("refresh")!=="1"&&postsCache&&postsCache.repo===env.GITHUB_REPO&&postsCache.branch===(env.GITHUB_BRANCH||"main")&&Date.now()<postsCache.expires)
