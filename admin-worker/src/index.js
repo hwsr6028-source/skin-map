@@ -142,26 +142,7 @@ async function oauthAccessToken(req,env){
  return data.access_token;
 }
 
-// Google Analytics Data API: server-to-server read-only access.
-// Store the whole service account JSON only as a Cloudflare secret (GA4_SERVICE_ACCOUNT_JSON).
-function b64url(bytes){return btoa(String.fromCharCode(...bytes)).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");}
-async function gaAccessToken(env){
- const secret=JSON.parse(env.GA4_SERVICE_ACCOUNT_JSON);
- if(!secret.client_email||!secret.private_key)throw Error("GA4 서비스 계정 비밀키 형식이 올바르지 않습니다.");
- const pem=secret.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,"");
- const binary=atob(pem), bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
- const key=await crypto.subtle.importKey("pkcs8",bytes,{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["sign"]);
- const now=Math.floor(Date.now()/1000);
- const head=b64url(enc.encode(JSON.stringify({alg:"RS256",typ:"JWT"})));
- const body=b64url(enc.encode(JSON.stringify({iss:secret.client_email,scope:"https://www.googleapis.com/auth/analytics.readonly",aud:"https://oauth2.googleapis.com/token",iat:now,exp:now+3000})));
- const raw=head+"."+body;
- const sig=await crypto.subtle.sign("RSASSA-PKCS1-v1_5",key,enc.encode(raw));
- const assertion=raw+"."+b64url(new Uint8Array(sig));
- const response=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion})});
- const data=await response.json();
- if(!response.ok||!data.access_token)throw Error("Google 인증에 실패했습니다. 서비스 계정 키와 권한을 확인해 주세요.");
- return data.access_token;
-}
+// GA4 reports are fetched by the authenticated administrator via Google OAuth.
 async function gaReport(env,token,body){
  const property=String(env.GA4_PROPERTY_ID||"560092337");
  if(!/^\d{6,20}$/.test(property))throw Error("GA4_PROPERTY_ID 설정이 올바르지 않습니다.");
