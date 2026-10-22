@@ -26,33 +26,52 @@ def get(url):
         return res.status, res.read()
 
 def changed_paths():
-    """Detect newly added/updated post JSON in the triggering commit."""
-    before = os.getenv("BEFORE_SHA", "").strip()
-    after = os.getenv("AFTER_SHA", "").strip() or "HEAD"
-    commands = [
-        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "--diff-filter=ACMRT", after, "--", "content/posts/"],
-        ["git", "show", "--format=", "--name-only", "--diff-filter=ACMRT", after, "--", "content/posts/"],
-    ]
-    if before and before != "0" * 40 and before != after:
-        commands.append(["git", "diff", "--name-only", "--diff-filter=ACMRT", before, after, "--", "content/posts/"])
-    for command in commands:
-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-        if result.returncode:
-            print("Git history check failed:", result.stderr.strip()[:240])
+    """Resolve files from GitHub commit API, avoiding unreliable push before/after diffs."""
+    sha = os.getenv("AFTER_SHA", "").strip() or os.getenv("GITHUB_SHA", "").strip()
+    repo = os.getenv("GITHUB_REPOSITORY", "hwsr6028-source/skin-map")
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    if sha and token:
+        url = "https://api.github.com/repos/" + repo + "/commits/" + urllib.parse.quote(sha, safe="")
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer " + token,
+            "User-Agent": "InfoWorld-IndexNow/1.0",
+            "X-GitHub-Api-Version": "2022-11-28",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=25) as response:
+                commit = json.load(response)
+            paths = sorted({
+                f["filename"] for f in commit.get("files", [])
+                if f.get("status") != "removed"
+                and f.get("filename", "").startswith("content/posts/")
+                and f.get("filename", "").endswith(".json")
+            })
+            print(f"GitHub commit {sha[:10]} has {len(paths)} changed post JSON file(s).")
+            if paths:
+                return paths
+        except (urllib.error.URLError, ValueError, KeyError) as exc:
+            print("GitHub commit API lookup failed:", str(exc)[:250])
+    # Local git fallback for manual workflow runs.
+    for args in [
+        ["git", "show", "--pretty=format:", "--name-only", "--diff-filter=ACMRT", sha or "HEAD", "--", "content/posts/"],
+        ["git", "diff", "--name-only", "HEAD^", "HEAD", "--", "content/posts/"],
+    ]:
+        process = subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
+        if process.returncode != 0:
             continue
-        paths = sorted({line.strip() for line in result.stdout.splitlines()
+        paths = sorted({line.strip() for line in process.stdout.splitlines()
                         if line.strip().startswith("content/posts/") and line.strip().endswith(".json")})
         if paths:
-            print(f"IndexNow candidate files: {len(paths)}")
+            print(f"Local git detected {len(paths)} changed post JSON file(s).")
             return paths
-    print("IndexNow candidate files: 0")
     return []
 
 def main():
     files = changed_paths()
     if not files:
-        print("No changed article JSON files; skipping IndexNow.")
-        return 0
+        print("WARNING: No changed article JSON files detected; no Naver submission was made.")
+        return 0 if os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch" else 1
     urls = []
     for name in files:
         file = ROOT / name
