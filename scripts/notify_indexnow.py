@@ -26,15 +26,27 @@ def get(url):
         return res.status, res.read()
 
 def changed_paths():
+    """Detect newly added/updated post JSON in the triggering commit."""
     before = os.getenv("BEFORE_SHA", "").strip()
     after = os.getenv("AFTER_SHA", "").strip() or "HEAD"
-    if not before or before == "0" * 40:
-        return []
-    result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMRT", before, after, "--", "content/posts/"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
-    )
-    return sorted({name for name in result.stdout.splitlines() if name.endswith(".json")})
+    commands = [
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "--diff-filter=ACMRT", after, "--", "content/posts/"],
+        ["git", "show", "--format=", "--name-only", "--diff-filter=ACMRT", after, "--", "content/posts/"],
+    ]
+    if before and before != "0" * 40 and before != after:
+        commands.append(["git", "diff", "--name-only", "--diff-filter=ACMRT", before, after, "--", "content/posts/"])
+    for command in commands:
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        if result.returncode:
+            print("Git history check failed:", result.stderr.strip()[:240])
+            continue
+        paths = sorted({line.strip() for line in result.stdout.splitlines()
+                        if line.strip().startswith("content/posts/") and line.strip().endswith(".json")})
+        if paths:
+            print(f"IndexNow candidate files: {len(paths)}")
+            return paths
+    print("IndexNow candidate files: 0")
+    return []
 
 def main():
     files = changed_paths()
