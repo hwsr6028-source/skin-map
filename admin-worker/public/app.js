@@ -21,7 +21,7 @@ function showLogin(isLogged){
 async function load(){
  const me=await api("me");
  showLogin(me.authenticated);
- if(me.authenticated){await list();reset();loadAnalytics();}
+ if(me.authenticated){await list();reset();loadAnalytics();loadNaverStatus();}
 }
 $("login-form").addEventListener("submit",async e=>{
  e.preventDefault();$("login-error").textContent="";
@@ -149,6 +149,36 @@ $("upload-btn").addEventListener("click",async()=>{
  };
  reader.readAsDataURL(file);
 });
+
+// GitHub Actions results are execution statuses; do not imply search indexing.
+async function loadNaverStatus(){
+ const status=$("naver-status"),container=$("naver-results"),tbody=$("naver-runs");
+ status.textContent="실행 기록을 불러오는 중입니다.";container.hidden=true;
+ try{
+  const data=await api("indexnow-status?days="+encodeURIComponent($("naver-range").value));
+  const counts=data.counts||{};
+  $("naver-success").textContent=statNumber(counts.success);
+  $("naver-cancelled").textContent=statNumber(counts.cancelled);
+  $("naver-failed").textContent=statNumber(counts.failure);
+  $("naver-pending").textContent=statNumber(counts.pending);
+  tbody.replaceChildren();
+  const labels={success:"실행 성공",cancelled:"취소",failure:"실패",timed_out:"시간 초과",skipped:"건너뜀"};
+  for(const item of data.runs||[]){
+   const tr=tbody.insertRow();
+   const title=tr.insertCell();title.textContent=item.title||"실행 기록";
+   const outcome=tr.insertCell();outcome.textContent=item.status==="completed"?(labels[item.conclusion]||item.conclusion||"완료"):"진행·대기";
+   const when=tr.insertCell();when.textContent=item.date?new Date(item.date).toLocaleString("ko-KR"):"-";
+   const linkCell=tr.insertCell();
+   if(/^https:\/\/github\.com\//.test(item.url||"")){
+    const link=document.createElement("a");link.textContent="실행 로그 ↗";link.href=item.url;link.target="_blank";link.rel="noopener noreferrer";linkCell.appendChild(link);
+   }else linkCell.textContent="-";
+  }
+  status.textContent="최근 "+data.days+"일 실행 "+(data.runs||[]).length+"건"+(data.limited?" · 최근 100건까지만 조회":"")+" · 실제 색인은 별도 확인";
+  container.hidden=false;
+ }catch(err){status.textContent="실행 현황 조회 실패: "+err.message;}
+}
+$("refresh-naver").addEventListener("click",loadNaverStatus);
+$("naver-range").addEventListener("change",loadNaverStatus);
 
 // Admin analytics is read-only. All counts are supplied by the authenticated Worker.
 const statNumber = n => new Intl.NumberFormat("ko-KR").format(Number(n)||0);
