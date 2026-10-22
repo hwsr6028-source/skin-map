@@ -88,3 +88,12 @@
 #analytics-setup{background:#fafbf9;border-radius:10px;padding:13px 18px;font-size:13px;line-height:1.9;color:#435b4d}
 #analytics-setup code{font-size:12px}
 @media(max-width:850px){.analytics-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-panels{grid-template-columns:1fr}.analytics-dashboard-head{flex-direction:column;align-items:stretch}}
+
+/* Naver Search Advisor / IndexNow execution status */
+.naver-table-wrap{max-height:390px;overflow:auto;border:1px solid #e7eee9;border-radius:12px}
+.naver-table-wrap .analytics-table{min-width:620px}
+.naver-table-wrap .analytics-table th{position:sticky;top:0;z-index:1}
+.naver-table-wrap .analytics-table th:nth-child(2),.naver-table-wrap .analytics-table td:nth-child(2){text-align:center;white-space:nowrap}
+.naver-table-wrap .analytics-table th:nth-child(3),.naver-table-wrap .analytics-table td:nth-child(3){text-align:center;white-space:nowrap}
+.naver-table-wrap .analytics-table th:last-child,.naver-table-wrap .analytics-table td:last-child{text-align:center;white-space:nowrap}
+.naver-table-wrap a{color:#246143;font-weight:700;text-decoration:underline}
