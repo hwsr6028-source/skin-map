@@ -100,8 +100,10 @@ for f in sorted((ROOT/'content'/'posts').glob('*.json')):
 # A prefix is removed only when it looks like a machine slug (at least 2 hyphens).
 def strip_generator_prefix(value):
     value=str(value or '').lstrip()
-    value=re.sub(r'^[a-z0-9]+(?:-[a-z0-9]+){2,}(?:[ \\t]*\\(※[^\\n)]*\\))?[ \\t]*','',value,count=1)
-    return value.lstrip(' \\t\\r\\n')
+    # Remove a leading internal ASCII slug and optional annotation only.
+    pattern=r'^[a-z0-9]+(?:-[a-z0-9]+){2,}(?:[ \t]*\(※[^\n)]*\))?[ \t]*'
+    value=re.sub(pattern,'',value,count=1)
+    return value.lstrip(' \t\r\n')
 for post in posts:
     post['description']=strip_generator_prefix(post.get('description',''))
     post['body']=strip_generator_prefix(post.get('body',''))
