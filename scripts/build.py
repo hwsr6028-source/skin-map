@@ -96,6 +96,16 @@ for f in sorted((ROOT/'content'/'posts').glob('*.json')):
             posts.append(obj)
     except Exception as e:
         print('Skipped post',f.name,':',e)
+# Remove generator-only URL identifiers mistakenly included in SEO snippets.
+# A prefix is removed only when it looks like a machine slug (at least 2 hyphens).
+def strip_generator_prefix(value):
+    value=str(value or '').lstrip()
+    value=re.sub(r'^[a-z0-9]+(?:-[a-z0-9]+){2,}(?:[ \\t]*\\(※[^\\n)]*\\))?[ \\t]*','',value,count=1)
+    return value.lstrip(' \\t\\r\\n')
+for post in posts:
+    post['description']=strip_generator_prefix(post.get('description',''))
+    post['body']=strip_generator_prefix(post.get('body',''))
+
 # Featured blog cards and static category / pagination pages
 from urllib.parse import unquote
 CATEGORIES={'health':'병원·건강','law':'법률','interior':'인테리어','moving':'이사·생활','realestate':'부동산','finance':'금융·경제','tech':'IT·디지털','education':'교육·취업','travel':'여행·취미','general':'비즈니스·기타','fortune':'점집','tattoo':'타투','shopping':'구매대행','supplements':'건강식품'}
@@ -187,7 +197,11 @@ for article in posts:
     page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">'+esc(CATEGORIES[category_of(article)])+'</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
     cover=card_image(article)
     cover_html='<figure class="article-cover"><img src="'+esc(cover)+'" alt="'+esc(title)+' 대표 이미지" width="1200" height="675" decoding="async"></figure>' if cover else ''
-    page+='<section class="shell article-grid"><article class="article">'+cover_html+markdown_to_html(article.get('body',''))+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
+    # Article-level HTML links expose additional pages to search crawlers.
+    related=[p for p in posts if p['slug']!=article['slug'] and category_of(p)==category_of(article)]
+    related.sort(key=lambda p:str(p.get('imported_at') or p.get('updated_at') or p.get('date') or ''),reverse=True)
+    related_html=('<nav class="related-articles" aria-label="관련 정보"><h2>같은 분야의 다른 글</h2><ul>'+''.join('<li><a href="/blog/'+quote(p['slug'],safe='-')+'/">'+esc(p.get('title',''))+'</a></li>' for p in related[:4])+'</ul></nav>') if related else ''
+    page+='<section class="shell article-grid"><article class="article">'+cover_html+markdown_to_html(article.get('body',''))+related_html+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
     save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=cover))
 def listing_path(category,num):
     root='/blog/' if not category else '/blog/category/'+category+'/'
