@@ -112,18 +112,34 @@ for post in posts:
 from urllib.parse import unquote
 CATEGORIES={'health':'병원·건강','law':'법률','interior':'인테리어','moving':'이사·생활','realestate':'부동산','finance':'금융·경제','tech':'IT·디지털','education':'교육·취업','travel':'여행·취미','general':'비즈니스·기타','fortune':'점집','tattoo':'타투','shopping':'구매대행','supplements':'건강식품'}
 PAGE_SIZE=9
+# Match the worker/admin's canonical category rules for existing Sheets posts.
+# Keep explicitly selected non-general categories; infer legacy 'general' rows
+# from the keyword/title so the public site and admin display agree.
+CATEGORY_PATTERNS=[
+ ('fortune',r'점집|사주|운세|타로|신점|철학관|무속'),
+ ('tattoo',r'타투|문신|반영구|타투이스트|레터링타투'),
+ ('shopping',r'구매대행|해외직구|배송대행|수입대행|직구대행'),
+ ('supplements',r'건강식품|건강기능식품|영양제|비타민|유산균|프로바이오틱스'),
+ ('moving',r'이사|포장이사|이삿짐|용달|입주청소|청소업체|폐기물|생활서비스'),
+ ('education',r'학원|과외|수학|영어교육|초등|중등|고등|입시|교육|유학|취업|자격증'),
+ ('law',r'법률|변호사|법무사|소송|계약분쟁|이혼|형사|민사|상속|개인회생'),
+ ('interior',r'인테리어|리모델링|도배|장판|욕실|주방공사|싱크대|타일'),
+ ('realestate',r'부동산|전세|월세|아파트|분양|매매|공인중개'),
+ ('finance',r'금융|경제|보험|대출|세금|주식|투자|절세'),
+ ('tech',r'IT|디지털|스마트폰|컴퓨터|노트북|앱|소프트웨어|AI|인공지능'),
+ ('travel',r'여행|관광|캠핑|호텔|항공|숙박'),
+ ('health',r'병원|건강|피부과|성형|치과|의원|의료|시술|한의원|리프팅|스킨부스터'),
+]
 def category_of(post):
-    val=str(post.get('category','')).strip()
-    if val in CATEGORIES:return val
-    # Older category identifiers remain readable without misleadingly renaming old content.
-    if val in ('dermatology','lifting','skinbooster'):return 'health'
-    if val=='other':return 'general'
-    subject=str(post.get('procedure',''))+' '+str(post.get('title',''))
-    if any(w in subject for w in ('점집','사주','운세','타로','신점','철학관')):return 'fortune'
-    if any(w in subject for w in ('타투','문신','반영구','타투이스트')):return 'tattoo'
-    if any(w in subject for w in ('구매대행','해외직구','배송대행','수입대행')):return 'shopping'
-    if any(w in subject for w in ('건강식품','영양제','건강기능식품','비타민','유산균')):return 'supplements'
-    if any(w in subject for w in ('피부과','피부','시술','병원','울쎄라','써마지','리쥬란','리프팅')):return 'health'
+    value=str(post.get('category') or '').strip()
+    legacy={'dermatology':'health','lifting':'health','skinbooster':'health','other':'general'}
+    value=legacy.get(value,value)
+    if value in CATEGORIES and value!='general':
+        return value
+    subject=str(post.get('keyword') or '')+' '+str(post.get('title') or '')+' '+str(post.get('procedure') or '')
+    for category,pattern in CATEGORY_PATTERNS:
+        if re.search(pattern,subject,re.IGNORECASE):
+            return category
     return 'general'
 def image_url(value):
     v=str(value or '').strip()
