@@ -94,7 +94,8 @@ for f in sorted((ROOT/'content'/'posts').glob('*.json')):
                 raise ValueError('Invalid post slug: '+slug)
             obj['slug']=slug
             obj['_source_file']=f.name
-            obj['_source_sha']=hashlib.sha1(b'blob '+str(len(f.read_bytes())).encode('ascii')+b'\0'+f.read_bytes()).hexdigest()
+            raw_post=f.read_bytes()
+            obj['_source_sha']=hashlib.sha1(b'blob '+str(len(raw_post)).encode('ascii')+b'\0'+raw_post).hexdigest()
             posts.append(obj)
     except Exception as e:
         print('Skipped post',f.name,':',e)
@@ -235,7 +236,7 @@ for post in posts:
         'status':'published',
         'date':str(post.get('date') or '')[:10],
         'latestAt':str(post.get('updated_at') or post.get('imported_at') or post.get('created_at') or post.get('date') or ''),
-        'sourceRow':int(post.get('source_row') or 0),
+        'sourceRow':int(str(post.get('source_row') or '0')) if str(post.get('source_row') or '0').isdigit() else 0,
     })
 (OUT/'posts-manifest.json').write_text(json.dumps({'posts':manifest},ensure_ascii=False,separators=(',',':')),encoding='utf-8')
 
