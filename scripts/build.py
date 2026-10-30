@@ -262,8 +262,15 @@ def render_listing(category=''):
         grid='<div class="blog-cards">'+''.join(blog_card(x) for x in current)+'</div>' if current else '<p>아직 이 카테고리에 공개된 글이 없습니다.</p>'
         page_links=''
         if total>1:
-            for i in range(1,total+1):
+            # Display only the ten pages in the current navigation group.
+            group_start=((num-1)//10)*10+1
+            group_end=min(group_start+9,total)
+            if group_start>1:
+                page_links+='<a class="page-group-nav" href="'+listing_path(category,group_start-1)+'" aria-label="이전 10개 페이지">‹ 이전 10개</a>'
+            for i in range(group_start,group_end+1):
                 page_links+='<a '+('aria-current="page" class="active" ' if i==num else '')+'href="'+listing_path(category,i)+'">'+str(i)+'</a>'
+            if group_end<total:
+                page_links+='<a class="page-group-nav" href="'+listing_path(category,group_end+1)+'" aria-label="다음 10개 페이지">다음 10개 ›</a>'
         pager='<nav class="blog-pagination" aria-label="페이지 이동">'+page_links+'</nav>' if page_links else ''
         body=intro+'<section class="section shell">'+category_nav(category)+grid+pager+'</section>'
         save(path,frame(title+' | 정보세상', '다양한 분야별 최신 가이드와 실용 정보 모음',path,body,index=True))
