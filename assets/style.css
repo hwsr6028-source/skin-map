@@ -22,7 +22,8 @@
 .blog-filters a{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:30px;padding:11px 16px;font-size:13px;font-weight:600;color:#63736a}
 .blog-filters a.active{color:#fff;background:#345f50;border-color:#345f50}
 .blog-filters span{font-size:11px;opacity:.7}
-.blog-pagination{display:flex;justify-content:center;gap:9px;margin:42px auto 0}
+.blog-pagination{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:9px;margin:42px auto 0}
+.blog-pagination a.page-group-nav{padding:0 12px;white-space:nowrap;font-weight:700}
 .blog-pagination a{display:grid;place-items:center;min-width:42px;height:42px;border:1px solid var(--line);border-radius:8px;font-size:13px}
 .blog-pagination a.active{background:#345f50;border-color:#345f50;color:#fff}
 .blog-all-link{font-size:13px;font-weight:700;color:#345f50;white-space:nowrap}
