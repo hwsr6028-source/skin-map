@@ -43,15 +43,15 @@ $("new-post").addEventListener("click",()=>{reset();if(activeCategory!=="all")$(
 function renderCategories(){
  const stats=$("category-stats");stats.replaceChildren();
  const counts={};
- for(const p of allPosts){const k=p.category||"general";counts[k]=(counts[k]||0)+1;}
- const options=[["all","전체 글"],...categories];
+ for(const p of allPosts.filter(p=>p.status==="published")){const k=p.category||"general";counts[k]=(counts[k]||0)+1;}
+ const options=[["all","전체 공개 글"],...categories];
  for(const [key,label] of options){
    const button=document.createElement("button");button.type="button";
    button.className="category-stat"+(activeCategory===key?" selected":"");
    button.setAttribute("aria-pressed",String(activeCategory===key));
    const name=document.createElement("span");name.className="category-stat-label";name.textContent=label;
    const num=document.createElement("strong");num.className="category-stat-count";
-   num.textContent=String(key==="all"?allPosts.length:counts[key]||0);
+   num.textContent=String(key==="all"?allPosts.filter(p=>p.status==="published").length:counts[key]||0);
    button.append(name,num);
    button.onclick=()=>{activeCategory=key;renderCategories();renderPosts();};
    stats.appendChild(button);
