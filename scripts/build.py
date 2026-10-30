@@ -29,7 +29,7 @@ def frame(title,desc,path,body,index=True,image=None):
  canonical=DOMAIN+path
  image_src=(str(image or "").strip())
  if image_src.startswith("/"):image_src=DOMAIN+image_src
- image_meta=('<meta property="og:image" content="'+esc(image_src)+'"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(image_src)+'">') if image_src.startswith("https://") else ""
+ image_meta=('<meta property="og:image" content="'+esc(image_src)+'"><meta property="og:image:secure_url" content="'+esc(image_src)+'"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="640"><meta property="og:image:height" content="360"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(image_src)+'">') if image_src.startswith("https://") else ""
  robots='index,follow' if index else 'noindex,follow'
  return f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="google-site-verification" content="n90ax_Rr4TxN5s1JgLTOYITAbJftYgZmlzP-vPiJCW4"><meta name="naver-site-verification" content="097949900434cde74cee16d2cabf5519a973384e"><title>{esc(title)}</title><meta name="description" content="{esc(desc)}"><meta name="robots" content="{robots}"><link rel="icon" type="image/png" sizes="64x64" href="/favicon.png"><link rel="shortcut icon" href="/favicon.png"><link rel="apple-touch-icon" href="/favicon.png"><link rel="canonical" href="{esc(canonical)}"><meta property="og:type" content="website"><meta property="og:title" content="{esc(title)}"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{esc(canonical)}">{image_meta}<link rel="stylesheet" href="/assets/style.css"><script async src="https://www.googletagmanager.com/gtag/js?id=G-ER6KYZHWK6"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments)}}gtag("js",new Date());gtag("config","G-ER6KYZHWK6");</script><script defer src="/assets/analytics.js"></script><script type="application/ld+json">{{"@context":"https://schema.org","@type":"WebSite","name":"정보세상","url":"{esc(DOMAIN)}/"}}</script></head><body><header class="site-header"><div class="shell nav"><a class="wordmark" href="/">정보<span>세상</span><i>.</i></a><nav aria-label="주요 메뉴"><a href="/about/">회사 소개</a><a href="/#services">서비스</a><a href="/#industries">전문 분야</a><a href="/blog/">콘텐츠</a><a href="https://info-world-admin.hwsr6028.workers.dev/" target="_blank" rel="noopener noreferrer" aria-label="관리자 로그인 새 창 열기">관리자 ↗</a><a class="nav-contact" href="/contact/">광고 문의 ↗</a></nav></div></header><main>{body}</main><footer id="about"><div class="shell foot"><div><b>정보세상</b><p>업종과 검색 의도를 연결하는 콘텐츠 제작·SEO 광고 스튜디오입니다.<br>기획부터 원고 제작과 운영까지 콘텐츠 중심의 솔루션을 안내합니다.</p></div><div><span>© {datetime.date.today().year} 정보세상</span><p>콘텐츠의 검색 노출 및 성과는 보장되지 않습니다.<br>의료·법률·금융 정보는 해당 전문가 검토가 필요합니다.</p></div></div></footer>{blog_floating_contact(path)}</body></html>'''
 def save(path,content):
@@ -196,6 +196,69 @@ def auto_cover(post):
     (directory/(digest+'.svg')).write_text(svg,encoding='utf-8')
     return '/assets/covers/'+digest+'.svg'
 
+# Standalone, per-article 640x360 PNG SEO preview. This is built with Python's
+# standard library (no Pillow/CLI dependency in Cloudflare Pages build).
+# The existing SVG inquiry banner remains unchanged in the article.
+def seo_preview_png(post):
+    import struct, zlib
+    slug=str(post['slug'])
+    digest=hashlib.sha256((slug+'|'+str(post.get('title') or '')).encode('utf-8')).digest()
+    group=category_of(post)
+    palette={
+        'health':(27,91,69),'fortune':(99,55,125),'tattoo':(52,59,74),
+        'law':(55,74,119),'interior':(126,82,54),'moving':(45,101,133),
+        'realestate':(74,109,57),'finance':(28,113,83),'tech':(71,84,155),
+        'education':(154,83,58),'travel':(36,112,143),
+        'shopping':(153,87,43),'supplements':(63,128,88),'general':(45,87,75)
+    }
+    ink=palette.get(group,palette['general'])
+    accent=tuple(min(255,c+65+(digest[0]%18)) for c in ink)
+    w,h=640,360
+    light=(250,249,245)
+    paper=(239,243,238)
+    gold=(231,170,69)
+    # Render flat rows efficiently with byte slicing; stable per-article accents.
+    pixels=bytearray()
+    for y in range(h):
+        row=bytearray(bytes(light)*w)
+        if y<12 or y>=348:
+            row[:]=bytes(ink)*w
+        elif 24<=y<335:
+            row[24*3:616*3]=bytes(paper)*592
+        if 48<=y<278:
+            row[48*3:251*3]=bytes(ink)*203
+        # Simple editorial symbol on the left, with category-specific bars.
+        if 98<=y<112 or 148<=y<162 or 198<=y<212:
+            row[87*3:213*3]=bytes(accent)*126
+        if 80<=y<91:
+            row[287*3:574*3]=bytes(ink)*287
+        if 116<=y<126:
+            row[287*3:(533+(digest[2]%37))*3]=bytes(ink)*(246+(digest[2]%37))
+        if 157<=y<164:
+            row[287*3:568*3]=bytes(accent)*281
+        if 187<=y<194:
+            row[287*3:541*3]=bytes(accent)*254
+        if 217<=y<224:
+            row[287*3:493*3]=bytes(accent)*206
+        if 292<=y<300:
+            row[48*3:251*3]=bytes(gold)*203
+        # Unique, visible graphical markers: no interchangeable article images.
+        for n in range(6):
+            bar_x=287+n*43
+            if 270<=y<270+(digest[n+4]%30):
+                row[bar_x*3:(bar_x+25)*3]=bytes(ink)*25
+        pixels.append(0)
+        pixels.extend(row)
+    def chunk(name,payload):
+        return struct.pack('!I',len(payload))+name+payload+struct.pack('!I',zlib.crc32(name+payload)&0xffffffff)
+    png=(b'\\x89PNG\\r\\n\\x1a\\n'+chunk(b'IHDR',struct.pack('!2I5B',w,h,8,2,0,0,0))
+         +chunk(b'IDAT',zlib.compress(bytes(pixels),6))+chunk(b'IEND',b''))
+    folder=OUT/'assets'/'seo-covers'
+    folder.mkdir(parents=True,exist_ok=True)
+    name=hashlib.sha256((slug+'|'+str(post.get('title') or '')).encode('utf-8')).hexdigest()[:24]+'.png'
+    (folder/name).write_bytes(png)
+    return '/assets/seo-covers/'+name
+
 DEFAULT_INQUIRY_BANNER='/assets/uploads/default-inquiry-banner.svg'
 def card_image(post):
     # An explicitly uploaded thumbnail always overrides the shared inquiry banner.
@@ -223,7 +286,9 @@ for article in posts:
     related.sort(key=lambda p:str(p.get('imported_at') or p.get('updated_at') or p.get('date') or ''),reverse=True)
     related_html=('<nav class="related-articles" aria-label="관련 정보"><h2>같은 분야의 다른 글</h2><ul>'+''.join('<li><a href="/blog/'+quote(p['slug'],safe='-')+'/">'+esc(p.get('title',''))+'</a></li>' for p in related[:4])+'</ul></nav>') if related else ''
     page+='<section class="shell article-grid"><article class="article">'+cover_html+markdown_to_html(article.get('body',''))+related_html+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
-    save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=cover))
+    # Prefer a public, crawlable PNG in search previews over repeated SVG promos.
+    seo_image=seo_preview_png(article)
+    save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=seo_image))
 # Public metadata index used by the admin to avoid hundreds of individual
 # GitHub Content API requests. No private content or credentials are included.
 manifest=[]
