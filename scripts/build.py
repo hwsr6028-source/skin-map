@@ -251,7 +251,7 @@ def seo_preview_png(post):
         pixels.extend(row)
     def chunk(name,payload):
         return struct.pack('!I',len(payload))+name+payload+struct.pack('!I',zlib.crc32(name+payload)&0xffffffff)
-    png=(b'\\x89PNG\\r\\n\\x1a\\n'+chunk(b'IHDR',struct.pack('!2I5B',w,h,8,2,0,0,0))
+    png=(bytes([137,80,78,71,13,10,26,10])+chunk(b'IHDR',struct.pack('!2I5B',w,h,8,2,0,0,0))
          +chunk(b'IDAT',zlib.compress(bytes(pixels),6))+chunk(b'IEND',b''))
     folder=OUT/'assets'/'seo-covers'
     folder.mkdir(parents=True,exist_ok=True)
