@@ -311,19 +311,52 @@ export default {
     const branch=env.GITHUB_BRANCH||"main";
     const listing=await github(env,"GET","contents/content/posts?ref="+encodeURIComponent(branch));
     const files=(Array.isArray(listing)?listing:[]).filter(x=>fileName(x.name));
-    // Read existing post metadata too: category, title, publication status and date.
-    // Bounded concurrency avoids bursts against GitHub's secondary rate limit.
-    const posts=[];
-    for(let i=0;i<files.length;i+=6){
-      const batch=await Promise.all(files.slice(i,i+6).map(async f=>{
-        try{
-          const r=await github(env,"GET","contents/content/posts/"+encodeURIComponent(f.name)+"?ref="+encodeURIComponent(branch));
-          const article=decodeFile(r.content);
-          const category=effectiveCategory(article);
-          return {file:f.name,sha:r.sha,title:String(article.title||f.name),category,status:article.status==="published"?"published":"draft",date:String(article.date||"").slice(0,10),latestAt:String(article.updated_at||article.imported_at||article.created_at||article.date||""),sourceRow:Number(article.source_row)||0};
-        }catch{
-          return {file:f.name,sha:f.sha,title:f.name,category:"general",status:"unknown",date:"",latestAt:"",sourceRow:0,metadataError:true};
+    // Use the site's build-generated metadata for published posts. This avoids
+    // making hundreds of parallel GitHub reads (and false 'status unknown' rows).
+    // Fall back to GitHub for new, unpublished or not-yet-deployed files.
+    let indexed=new Map();
+    try{
+      const manifestResponse=await fetch("https://skin-map.pages.dev/posts-manifest.json",{
+        headers:{"accept":"application/json"},cache:"no-store"
+      });
+      if(manifestResponse.ok){
+        const manifest=await manifestResponse.json();
+        if(Array.isArray(manifest.posts)){
+          indexed=new Map(manifest.posts.filter(p=>fileName(p.file)).map(p=>[p.file,p]));
         }
+      }
+    }catch(e){console.warn("Published post manifest unavailable",String(e));}
+    const posts=[],pending=[];
+    for(const file of files){
+      const meta=indexed.get(file.name);
+      // Git blob SHA matches the content SHA in GitHub's directory listing.
+      // An outdated manifest is still safe for display if the blob is unchanged.
+      if(meta&&meta.sha===file.sha){
+        posts.push({...meta,sha:file.sha,file:file.name});
+      }else{
+        pending.push(file);
+      }
+    }
+    // Bounded concurrency for content that was saved after the last site build.
+    // Retry transient failures, never silently mislabel a post 'general'.
+    for(let i=0;i<pending.length;i+=3){
+      const batch=await Promise.all(pending.slice(i,i+3).map(async f=>{
+        for(let attempt=0;attempt<2;attempt++){
+          try{
+            const r=await github(env,"GET","contents/content/posts/"+encodeURIComponent(f.name)+"?ref="+encodeURIComponent(branch));
+            const article=decodeFile(r.content);
+            const category=effectiveCategory(article);
+            return {file:f.name,sha:r.sha,title:String(article.title||f.name),
+              category,status:article.status==="published"?"published":"draft",
+              date:String(article.date||"").slice(0,10),
+              latestAt:String(article.updated_at||article.imported_at||article.created_at||article.date||""),
+              sourceRow:Number(article.source_row)||0};
+          }catch(e){
+            if(attempt===1)console.warn("Article metadata load failed",f.name,String(e));
+          }
+        }
+        return {file:f.name,sha:f.sha,title:f.name,category:"unclassified",
+          status:"unknown",date:"",latestAt:"",sourceRow:0,metadataError:true};
       }));
       posts.push(...batch);
     }
