@@ -68,6 +68,17 @@ function categoryFor(keyword,title){
   const subject=String(keyword||"")+" "+String(title||"");
   return IMPORT_CATEGORIES.find(([k,re])=>re.test(subject))?.[0]||"general";
 }
+// Shared classification semantics with scripts/build.py.
+// Explicit categories stay as edited; legacy "general" articles are inferred
+// from their subject so public listings and admin stats agree.
+function effectiveCategory(article){
+ const legacy={dermatology:"health",lifting:"health",skinbooster:"health",other:"general"};
+ const raw=String(article.category||"general").trim();
+ const category=legacy[raw]||raw;
+ const allowed=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","fortune","tattoo","shopping","supplements"]);
+ if(allowed.has(category)&&category!=="general")return category;
+ return categoryFor(String(article.keyword||"")+" "+String(article.procedure||""),String(article.title||""));
+}
 function parseSheetDraft(raw,keyword){
  const lines=String(raw||"").replace(/\r\n?/g,"\n").split("\n");
  // Generated layout: title, core keyword, URL, then prose.
@@ -308,8 +319,7 @@ export default {
         try{
           const r=await github(env,"GET","contents/content/posts/"+encodeURIComponent(f.name)+"?ref="+encodeURIComponent(branch));
           const article=decodeFile(r.content);
-          const legacyCategories={dermatology:"health",lifting:"health",skinbooster:"health",other:"general"};
-          const category=legacyCategories[article.category]||String(article.category||"general");
+          const category=effectiveCategory(article);
           return {file:f.name,sha:r.sha,title:String(article.title||f.name),category,status:article.status==="published"?"published":"draft",date:String(article.date||"").slice(0,10),latestAt:String(article.updated_at||article.imported_at||article.created_at||article.date||""),sourceRow:Number(article.source_row)||0};
         }catch{
           return {file:f.name,sha:f.sha,title:f.name,category:"general",status:"unknown",date:"",latestAt:"",sourceRow:0,metadataError:true};
