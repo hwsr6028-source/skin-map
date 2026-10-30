@@ -93,6 +93,8 @@ for f in sorted((ROOT/'content'/'posts').glob('*.json')):
             if not re.fullmatch(r'[가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]+(?:-[가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]+)*',slug):
                 raise ValueError('Invalid post slug: '+slug)
             obj['slug']=slug
+            obj['_source_file']=f.name
+            obj['_source_sha']=hashlib.sha1(b'blob '+str(len(f.read_bytes())).encode('ascii')+b'\0'+f.read_bytes()).hexdigest()
             posts.append(obj)
     except Exception as e:
         print('Skipped post',f.name,':',e)
@@ -221,6 +223,22 @@ for article in posts:
     related_html=('<nav class="related-articles" aria-label="관련 정보"><h2>같은 분야의 다른 글</h2><ul>'+''.join('<li><a href="/blog/'+quote(p['slug'],safe='-')+'/">'+esc(p.get('title',''))+'</a></li>' for p in related[:4])+'</ul></nav>') if related else ''
     page+='<section class="shell article-grid"><article class="article">'+cover_html+markdown_to_html(article.get('body',''))+related_html+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
     save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=cover))
+# Public metadata index used by the admin to avoid hundreds of individual
+# GitHub Content API requests. No private content or credentials are included.
+manifest=[]
+for post in posts:
+    manifest.append({
+        'file':post['_source_file'],
+        'sha':post['_source_sha'],
+        'title':str(post.get('title') or post['_source_file']),
+        'category':category_of(post),
+        'status':'published',
+        'date':str(post.get('date') or '')[:10],
+        'latestAt':str(post.get('updated_at') or post.get('imported_at') or post.get('created_at') or post.get('date') or ''),
+        'sourceRow':int(post.get('source_row') or 0),
+    })
+(OUT/'posts-manifest.json').write_text(json.dumps({'posts':manifest},ensure_ascii=False,separators=(',',':')),encoding='utf-8')
+
 def listing_path(category,num):
     root='/blog/' if not category else '/blog/category/'+category+'/'
     return root if num==1 else root+'page/'+str(num)+'/'
