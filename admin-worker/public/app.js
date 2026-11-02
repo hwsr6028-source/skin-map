@@ -15,6 +15,39 @@ function preview(){
  $("slug-preview").textContent=slug?"https://skin-map.pages.dev/blog/"+slug+"/":"키워드를 입력해 주세요.";
 }
 $("keyword").addEventListener("input",preview);
+
+function updateBodyLivePreview(){
+ const container=$("body-live-preview");
+ if(!container)return;
+ container.replaceChildren();
+ const body=$("body").value||"";
+ if(!body.trim()){
+  const p=document.createElement("p");p.textContent="본문을 입력하면 이곳에 이미지와 글이 표시됩니다.";container.appendChild(p);return;
+ }
+ const lines=body.split(/\r?\n/);
+ for(const line of lines){
+  const trimmed=line.trim();
+  if(!trimmed)continue;
+  // Markdown image lines, including images placed between paragraphs.
+  const imageMatch=trimmed.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
+  if(imageMatch){
+   const url=imageMatch[2];
+   if(url.startsWith("/assets/uploads/")||url.startsWith("https://")||url.startsWith("http://")){
+    const figure=document.createElement("figure");
+    const img=document.createElement("img");
+    img.src=url;img.alt=imageMatch[1]||"본문 이미지";img.loading="lazy";
+    figure.appendChild(img);container.appendChild(figure);
+    continue;
+   }
+  }
+  const heading=trimmed.match(/^(#{1,3})\s+(.+)$/);
+  const el=document.createElement(heading?"h"+Math.min(4,heading[1].length+1):trimmed.startsWith("- ")?"li":"p");
+  el.textContent=heading?heading[2]:trimmed.startsWith("- ")?trimmed.slice(2):trimmed;
+  container.appendChild(el);
+ }
+}
+$("body").addEventListener("input",updateBodyLivePreview);
+
 function showLogin(isLogged){
  $("login-panel").hidden=isLogged;$("app-panel").hidden=!isLogged;$("account").hidden=!isLogged;
 }
@@ -37,7 +70,7 @@ function reset(){
  editFile=null;editSha=null;editingSlug="";
  $("delete-post").hidden=true;
  $("post-form").reset();$("status").value="published";$("seo_approved").checked=true;$("date").value=new Date().toISOString().slice(0,10);
- $("editor-title").textContent="새 글 작성";$("message").textContent="";$("upload-result").textContent="";preview();
+ $("editor-title").textContent="새 글 작성";$("message").textContent="";$("upload-result").textContent="";preview();updateBodyLivePreview();
 }
 $("new-post").addEventListener("click",()=>{reset();if(activeCategory!=="all")$("category").value=activeCategory;$("editor-title").scrollIntoView({behavior:"smooth",block:"start"});});
 function renderCategories(){
@@ -111,7 +144,7 @@ async function openPost(file){
    const legacy={dermatology:"health",lifting:"health",skinbooster:"health",other:"general"};
    if(legacy[data.article.category])$("category").value=legacy[data.article.category];
    $("status").value="published";$("seo_approved").checked=true;
-   $("editor-title").textContent="글 수정: "+(data.article.title||file);$("message").textContent="";preview();
+   $("editor-title").textContent="글 수정: "+(data.article.title||file);$("message").textContent="";preview();updateBodyLivePreview();
    window.scrollTo({top:0,behavior:"smooth"});
  }catch(e){alert(e.message);}
 }
