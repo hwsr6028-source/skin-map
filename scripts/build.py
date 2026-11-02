@@ -297,6 +297,75 @@ def seo_preview_png(post):
     (folder/name).write_bytes(png)
     return '/assets/seo-covers/'+name
 
+def title_cover_svg(post):
+    """Always create an actual standalone SVG image with this article's title.
+    Standard-library only: no fonts, images or external build dependencies.
+    Uploaded covers bypass this generator in every published presentation.
+    """
+    title=str(post.get('title') or post.get('keyword') or '생활 정보 가이드').strip()
+    category=CATEGORIES[category_of(post)]
+    group=category_of(post)
+    colors={
+        'health':('#143f35','#e5f4eb'),'fortune':('#4d3462','#f2eaf7'),
+        'tattoo':('#26333d','#e6edf2'),'law':('#1c3554','#e9eff8'),
+        'interior':('#6a4231','#f5eee6'),'moving':('#265569','#e8f3f6'),
+        'realestate':('#3b593d','#eef4e8'),'finance':('#135a4b','#e7f6f1'),
+        'tech':('#354f83','#edf1fb'),'education':('#175968','#e8f5f7'),
+        'travel':('#176783','#e7f5fb'),'shopping':('#83502c','#fbf0e7'),
+        'supplements':('#37644b','#ebf7ef'),'general':('#254c40','#ecf5ef'),
+    }
+    ink,pale=colors.get(group,colors['general'])
+    # Count East Asian glyphs as two cells. Wrap along natural whitespace
+    # first, then split long unbroken words to keep text inside the image.
+    def weight(char):
+        return 2 if ord(char)>127 else 1
+    def text_width(value):
+        return sum(weight(ch) for ch in value)
+    limit=23 if len(title)<40 else 26
+    words=title.split()
+    chunks=[]
+    for word in words:
+        if not chunks:
+            chunks=[word]
+        elif text_width(chunks[-1]+' '+word)<=limit:
+            chunks[-1]+=' '+word
+        else:
+            chunks.append(word)
+    lines=[]
+    for chunk in chunks:
+        if text_width(chunk)<=limit:
+            lines.append(chunk)
+        else:
+            piece=''
+            for ch in chunk:
+                if piece and text_width(piece+ch)>limit:
+                    lines.append(piece)
+                    piece=''
+                piece+=ch
+            if piece:lines.append(piece)
+    if len(lines)>4:
+        lines=lines[:4]
+        last=lines[-1]
+        while last and text_width(last+'…')>limit:last=last[:-1]
+        lines[-1]=last+'…'
+    line_height=61 if len(lines)<=3 else 50
+    font_size=49 if len(lines)<=3 else 42
+    top=175-(len(lines)-1)*line_height/2
+    tspans=''.join('<tspan x="55" y="'+str(round(top+i*line_height))+'">'+html.escape(line,quote=True)+'</tspan>' for i,line in enumerate(lines))
+    svg=('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">'
+         '<rect width="640" height="360" fill="'+pale+'"/>'
+         '<rect x="0" y="0" width="14" height="360" fill="'+ink+'"/>'
+         '<text x="55" y="67" fill="'+ink+'" font-size="24" font-weight="700" font-family="sans-serif">'+html.escape(category)+'</text>'
+         '<text fill="'+ink+'" font-size="'+str(font_size)+'" font-weight="800" letter-spacing="-1.3" font-family="Noto Sans KR,Malgun Gothic,Apple SD Gothic Neo,sans-serif">'+tspans+'</text>'
+         '<path d="M55 299 H585" stroke="'+ink+'" stroke-opacity=".18" stroke-width="2"/>'
+         '<text x="55" y="332" fill="'+ink+'" font-size="19" font-weight="700" font-family="sans-serif">정보세상</text>'
+         '</svg>')
+    folder=OUT/'assets'/'title-covers'
+    folder.mkdir(parents=True,exist_ok=True)
+    name=hashlib.sha256((str(post.get('slug'))+'|'+title+'|'+group).encode('utf8')).hexdigest()[:24]+'.svg'
+    (folder/name).write_text(svg,encoding='utf8')
+    return '/assets/title-covers/'+name
+
 DEFAULT_INQUIRY_BANNER='/assets/uploads/default-inquiry-banner.svg'
 def card_image(post):
     # An explicitly uploaded thumbnail always overrides the shared inquiry banner.
@@ -304,11 +373,10 @@ def card_image(post):
     if cover:return cover
     return DEFAULT_INQUIRY_BANNER
 def blog_card(post):
-    # Explicit user-uploaded thumbnail always wins over auto-generated graphics.
+    # Manual thumbnail always wins. Otherwise use an actual article-title image.
     custom=image_url(post.get('thumbnail',''))
-    img=custom or post.get('_seo_image') or card_image(post)
-    title_overlay='' if custom else '<span class="blog-card-cover-caption"><span>'+esc(CATEGORIES[category_of(post)])+'</span><strong>'+esc(post.get('title',''))+'</strong></span>'
-    pic=('<span class="blog-card-media'+(' blog-card-auto-cover' if not custom else '')+'"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'">'+title_overlay+'</span>' if img else '<span class="blog-card-media blog-card-placeholder"><span>정보세상</span></span>')
+    img=custom or post['_title_image']
+    pic='<span class="blog-card-media"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'"></span>'
     path='/blog/'+esc(post['slug'])+'/'
     cat=CATEGORIES[category_of(post)]
     date=str(post.get('date',''))[:10]
@@ -316,6 +384,8 @@ def blog_card(post):
 posts.sort(key=lambda x:(str(x.get('updated_at') or x.get('imported_at') or x.get('created_at') or x.get('date') or ''),str(x.get('date','')),str(x.get('title',''))),reverse=True)
 # Generate every SEO preview before rendering either the list or the article.
 for post in posts:
+    post['_title_image']=title_cover_svg(post)
+    # Keep the separately rasterized PNG as a crawler-compatible OG fallback.
     post['_seo_image']=seo_preview_png(post)
 # Articles without a custom thumbnail use the same branded inquiry banner.
 for article in posts:
@@ -324,7 +394,8 @@ for article in posts:
     desc=article.get('description','')
     page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">'+esc(CATEGORIES[category_of(article)])+'</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
     uploaded_cover=image_url(article.get('thumbnail',''))
-    seo_image=uploaded_cover or article['_seo_image']
+    seo_image=uploaded_cover or article['_title_image']
+    og_image=uploaded_cover or article['_seo_image']
     # Use the actual selected thumbnail in card, article and og:image.
     # If no image was uploaded, use the generated fallback preview.
     cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 대표 이미지" width="640" height="360" decoding="async"></figure>'
@@ -338,7 +409,7 @@ for article in posts:
     related_html=('<nav class="related-articles" aria-label="관련 정보"><h2>같은 분야의 다른 글</h2><ul>'+''.join('<li><a href="/blog/'+quote(p['slug'],safe='-')+'/">'+esc(p.get('title',''))+'</a></li>' for p in related[:4])+'</ul></nav>') if related else ''
     page+='<section class="shell article-grid"><article class="article">'+cover_html+markdown_to_html(article.get('body',''))+related_html+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
     # Prefer a public, crawlable PNG in search previews over repeated SVG promos.
-    save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=seo_image))
+    save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=og_image))
 # Public metadata index used by the admin to avoid hundreds of individual
 # GitHub Content API requests. No private content or credentials are included.
 manifest=[]
