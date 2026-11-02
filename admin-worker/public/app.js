@@ -16,6 +16,27 @@ function preview(){
 }
 $("keyword").addEventListener("input",preview);
 
+function isSafeWebLink(url){return /^https?:\/\/[^\s]+$/i.test(String(url||"").trim());}
+function putIntoBody(markdown){
+ const editor=$("body");
+ const start=editor.selectionStart??editor.value.length,end=editor.selectionEnd??start;
+ const before=editor.value.slice(0,start),after=editor.value.slice(end);
+ const insert=(before&&!before.endsWith("\n")?"\n\n":"")+markdown+(after&&!after.startsWith("\n")?"\n\n":"");
+ editor.setRangeText(insert,start,end,"end");
+ editor.dispatchEvent(new Event("input",{bubbles:true}));editor.focus();
+}
+function renderPreviewText(text,container){
+ // Only text nodes and validated anchors. Never inject source HTML.
+ const re=/\[(.*?)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>]+)/g;
+ let last=0,m;
+ while((m=re.exec(text))!==null){
+  if(m.index>last)container.appendChild(document.createTextNode(text.slice(last,m.index)));
+  const value=m[1]??m[3],url=m[2]??m[3];
+  const anchor=document.createElement("a");anchor.href=url.replace(/[.,!?;:]+$/,"");anchor.target="_blank";anchor.rel="noopener noreferrer";anchor.textContent=value;
+  container.appendChild(anchor);last=re.lastIndex;
+ }
+ if(last<text.length)container.appendChild(document.createTextNode(text.slice(last)));
+}
 function updateBodyLivePreview(){
  const container=$("body-live-preview");
  if(!container)return;
@@ -24,28 +45,33 @@ function updateBodyLivePreview(){
  if(!body.trim()){
   const p=document.createElement("p");p.textContent="본문을 입력하면 이곳에 이미지와 글이 표시됩니다.";container.appendChild(p);return;
  }
- const lines=body.split(/\r?\n/);
- for(const line of lines){
-  const trimmed=line.trim();
-  if(!trimmed)continue;
-  // Markdown image lines, including images placed between paragraphs.
-  const imageMatch=trimmed.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
-  if(imageMatch){
-   const url=imageMatch[2];
-   if(url.startsWith("/assets/uploads/")||url.startsWith("https://")||url.startsWith("http://")){
-    const figure=document.createElement("figure");
-    const img=document.createElement("img");
-    img.src=url;img.alt=imageMatch[1]||"본문 이미지";img.loading="lazy";
-    figure.appendChild(img);container.appendChild(figure);
-    continue;
+ for(const line of body.split(/\r?\n/)){
+  const trimmed=line.trim();if(!trimmed)continue;
+  const linked=trimmed.match(/^\[!\[([^\]]*)\]\(([^)\s]+)\)\]\((https?:\/\/[^)\s]+)\)$/);
+  const plain=trimmed.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
+  const match=linked||plain;
+  if(match){
+   const imageUrl=match[2];
+   if(imageUrl.startsWith("/assets/uploads/")||isSafeWebLink(imageUrl)){
+    const figure=document.createElement("figure"),img=document.createElement("img");
+    img.src=imageUrl;img.alt=match[1]||"본문 이미지";img.loading="lazy";
+    if(linked){const anchor=document.createElement("a");anchor.href=linked[3];anchor.target="_blank";anchor.rel="noopener noreferrer";anchor.appendChild(img);figure.appendChild(anchor);}
+    else figure.appendChild(img);
+    container.appendChild(figure);continue;
    }
   }
   const heading=trimmed.match(/^(#{1,3})\s+(.+)$/);
   const el=document.createElement(heading?"h"+Math.min(4,heading[1].length+1):trimmed.startsWith("- ")?"li":"p");
-  el.textContent=heading?heading[2]:trimmed.startsWith("- ")?trimmed.slice(2):trimmed;
+  renderPreviewText(heading?heading[2]:trimmed.startsWith("- ")?trimmed.slice(2):trimmed,el);
   container.appendChild(el);
  }
 }
+$("insert-link-btn").addEventListener("click",()=>{
+ const url=$("insert-link-url").value.trim();
+ if(!isSafeWebLink(url))return alert("https:// 또는 http://로 시작하는 링크 주소를 입력해주세요.");
+ const editor=$("body"),selected=editor.value.slice(editor.selectionStart,editor.selectionEnd).trim();
+ putIntoBody(selected?"["+selected.replace(/[\[\]]/g,"")+"]("+url+")":url);
+});
 $("body").addEventListener("input",updateBodyLivePreview);
 
 function showLogin(isLogged){
@@ -189,6 +215,14 @@ $("upload-btn").addEventListener("click",async()=>{
     editor.scrollTop=Math.max(0,editor.scrollHeight*(editor.selectionStart/Math.max(1,editor.value.length))-(editor.clientHeight/2));
    };
    result.appendChild(btn);
+   const linkedBtn=document.createElement("button");linkedBtn.className="quiet";linkedBtn.type="button";linkedBtn.textContent="클릭 링크가 있는 이미지 삽입";
+   linkedBtn.onclick=()=>{
+    const target=$("insert-link-url").value.trim();
+    if(!isSafeWebLink(target))return alert("먼저 이동할 링크 주소를 입력해주세요.");
+    const imageLabel=file.name.replace(/\.[^.]+$/,"").replace(/[\[\]()]/g," ").trim()||"본문 이미지";
+    putIntoBody("[!["+imageLabel+"]("+r.url+")]("+target+")");
+   };
+   result.appendChild(linkedBtn);
    const coverBtn=document.createElement("button");coverBtn.className="quiet";coverBtn.type="button";coverBtn.textContent="대표 이미지로 지정";
    coverBtn.onclick=()=>{$("thumbnail").value=r.url;};
    result.appendChild(coverBtn);
