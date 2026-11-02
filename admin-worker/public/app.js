@@ -149,8 +149,8 @@ $("upload-btn").addEventListener("click",async()=>{
     const end=editor.selectionEnd==null?start:editor.selectionEnd;
     const before=editor.value.slice(0,start),after=editor.value.slice(end);
     const label=file.name.replace(/\.[^.]+$/,"").replace(/[\[\]()]/g," ").trim()||"본문 이미지";
-    const insert=(before&&!before.endsWith("\\n")?"\\n\\n":"")+"!["+label+"]("+r.url+")"+(after&&!after.startsWith("\\n")?"\\n\\n":"");
-    editor.setRangeText(insert,start,end,"end");
+    const insert=(before&&!before.endsWith("\n")?"\n\n":"")+"!["+label+"]("+r.url+")"+(after&&!after.startsWith("\n")?"\n\n":"");
+        editor.setRangeText(insert,start,end,"end");
     editor.dispatchEvent(new Event("input",{bubbles:true}));
     editor.focus();
     editor.scrollTop=Math.max(0,editor.scrollHeight*(editor.selectionStart/Math.max(1,editor.value.length))-(editor.clientHeight/2));
