@@ -470,6 +470,13 @@ for article in posts:
     # uploaded thumbnail, without incorrectly promoting it to the cover.
     if not uploaded_cover:
         cover_html+='<figure class="article-cover inquiry-banner"><img src="'+esc(DEFAULT_INQUIRY_BANNER)+'" alt="정보세상 광고 상담 안내" width="1200" height="675" decoding="async" loading="lazy"></figure>'
+    # Search engines can read article metadata directly from server-rendered HTML.
+    article_schema={'@context':'https://schema.org','@type':'BlogPosting','headline':str(title),'description':str(desc),'mainEntityOfPage':DOMAIN+path,'image':[DOMAIN+seo_image if seo_image.startswith('/') else seo_image],'publisher':{'@type':'Organization','name':'정보세상','url':DOMAIN+'/'} }
+    published_at=str(article.get('date') or article.get('created_at') or '')[:10]
+    modified_at=str(article.get('updated_at') or article.get('imported_at') or published_at)[:10]
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}',published_at):article_schema['datePublished']=published_at
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}',modified_at):article_schema['dateModified']=modified_at
+    page+='<script type="application/ld+json">'+json.dumps(article_schema,ensure_ascii=False).replace('<','\\u003c')+'</script>'
     # Article-level HTML links expose additional pages to search crawlers.
     related=[p for p in posts if p['slug']!=article['slug'] and category_of(p)==category_of(article)]
     related.sort(key=lambda p:str(p.get('imported_at') or p.get('updated_at') or p.get('date') or ''),reverse=True)
@@ -609,11 +616,28 @@ for key in ('',*CATEGORIES.keys()):
 for x in posts:
     if x.get('seo_approved',False) is True:
         sitemap_entries.append(('/blog/'+x['slug']+'/',str(x.get('updated_at') or x.get('imported_at') or x.get('created_at') or x.get('date') or '')[:10]))
-sitemap_xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+sitemap_xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n'
+# Include discoverable, actual image URLs for each index-approved article.
+# Inline images remain real <img src> elements in article HTML.
+image_by_path={}
+for post in posts:
+    if post.get('seo_approved') is not True:continue
+    page_path='/blog/'+post['slug']+'/'
+    sources=[image_url(post.get('thumbnail')) or post['_seo_image']]
+    sources.extend(html.unescape(src) for src in re.findall(r'!\\[[^\\]]*\\]\\(([^)\\s]+)\\)',str(post.get('body') or '')))
+    seen=set();urls=[]
+    for src in sources:
+        src=image_url(src)
+        if not src:continue
+        if src.startswith('/'):src=DOMAIN+src
+        if src in seen:continue
+        seen.add(src);urls.append(src)
+    image_by_path[page_path]=urls[:30]
 for p,modified in sitemap_entries:
     loc=esc(DOMAIN+quote(p,safe='/'))
     valid_date=bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}',modified or ''))
-    sitemap_xml+='<url><loc>'+loc+'</loc>'+('<lastmod>'+modified+'</lastmod>' if valid_date else '')+'</url>\n'
+    pictures=''.join('<image:image><image:loc>'+esc(src)+'</image:loc></image:image>' for src in image_by_path.get(p,[]))
+    sitemap_xml+='<url><loc>'+loc+'</loc>'+('<lastmod>'+modified+'</lastmod>' if valid_date else '')+pictures+'</url>\n'
 sitemap_xml+='</urlset>'
 (OUT/'sitemap.xml').write_text(sitemap_xml,encoding='utf8')
 
