@@ -114,3 +114,13 @@
 .body-live-preview figure img{display:block;width:100%;height:auto;max-height:440px;object-fit:contain;border-radius:9px;background:#f2f6f2}
 .body-live-preview li{margin-left:18px}
 @media(max-width:900px){.body-editor-layout{grid-template-columns:1fr}.body-live-preview{height:auto;max-height:450px}.body-edit-pane textarea{min-height:330px}}
+
+
+/* Editor link controls and rich preview links */
+.editor-link-tools{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-top:12px}
+.editor-link-tools label{flex:1 1 270px;min-width:220px;font-size:13px}
+.editor-link-tools input{width:100%;margin-top:5px}
+.editor-link-tools small{flex-basis:100%;color:#60766a}
+.body-live-preview a{color:#176c4a;text-decoration:underline;overflow-wrap:anywhere}
+.body-live-preview figure a{display:block;cursor:pointer}
+.body-live-preview figure a img{outline:1px solid #d7e8d9}
