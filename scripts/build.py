@@ -231,71 +231,138 @@ def auto_cover(post):
 # standard library (no Pillow/CLI dependency in Cloudflare Pages build).
 # The existing SVG inquiry banner remains unchanged in the article.
 def seo_preview_png(post):
-    import struct, zlib
-    slug=str(post['slug'])
-    digest=hashlib.sha256((slug+'|'+str(post.get('title') or '')).encode('utf-8')).digest()
-    group=category_of(post)
-    palette={
-        'health':(27,91,69),'fortune':(99,55,125),'tattoo':(52,59,74),
-        'law':(55,74,119),'interior':(126,82,54),'moving':(45,101,133),
-        'realestate':(74,109,57),'finance':(28,113,83),'tech':(71,84,155),
-        'education':(154,83,58),'travel':(36,112,143),
-        'shopping':(153,87,43),'supplements':(63,128,88),'general':(45,87,75)
-    }
-    ink=palette.get(group,palette['general'])
-    accent=tuple(min(255,c+65+(digest[0]%18)) for c in ink)
-    w,h=640,360
-    light=(250,249,245)
-    paper=(239,243,238)
-    gold=(231,170,69)
-    # Render flat rows efficiently with byte slicing; stable per-article accents.
-    pixels=bytearray()
-    for y in range(h):
-        row=bytearray(bytes(light)*w)
-        if y<12 or y>=348:
-            row[:]=bytes(ink)*w
-        elif 24<=y<335:
-            row[24*3:616*3]=bytes(paper)*592
-        if 48<=y<278:
-            row[48*3:251*3]=bytes(ink)*203
-        # Simple editorial symbol on the left, with category-specific bars.
-        if 98<=y<112 or 148<=y<162 or 198<=y<212:
-            row[87*3:213*3]=bytes(accent)*126
-        if 80<=y<91:
-            row[287*3:574*3]=bytes(ink)*287
-        if 116<=y<126:
-            row[287*3:(533+(digest[2]%37))*3]=bytes(ink)*(246+(digest[2]%37))
-        if 157<=y<164:
-            row[287*3:568*3]=bytes(accent)*281
-        if 187<=y<194:
-            row[287*3:541*3]=bytes(accent)*254
-        if 217<=y<224:
-            row[287*3:493*3]=bytes(accent)*206
-        if 292<=y<300:
-            row[48*3:251*3]=bytes(gold)*203
-        # Unique, visible graphical markers: no interchangeable article images.
-        for n in range(6):
-            bar_x=287+n*43
-            if 270<=y<270+(digest[n+4]%30):
-                row[bar_x*3:(bar_x+25)*3]=bytes(ink)*25
-        # Fine-grained deterministic paper texture. In addition to improving the
-        # editorial appearance, avoid tiny PNGs below Naver's 5 KB guidance.
-        if 27<=y<335:
-            for x in range(29+(y%3),612,7):
-                if (x*17+y*29+digest[(x//7+y//11)%32])%13<4:
-                    p=x*3
-                    row[p:p+3]=bytes((min(255,row[p]+3),min(255,row[p+1]+4),min(255,row[p+2]+3)))
-        pixels.append(0)
-        pixels.extend(row)
-    def chunk(name,payload):
-        return struct.pack('!I',len(payload))+name+payload+struct.pack('!I',zlib.crc32(name+payload)&0xffffffff)
-    png=(bytes([137,80,78,71,13,10,26,10])+chunk(b'IHDR',struct.pack('!2I5B',w,h,8,2,0,0,0))
-         +chunk(b'IDAT',zlib.compress(bytes(pixels),6))+chunk(b'IEND',b''))
+    """Generate a clean title-based PNG shared by cards, article and OG metadata.
+
+    All articles have a unique stable filename derived from slug, title, category.
+    Uploaded representative images take precedence and don't require generation.
+    Pillow and a Korean font are resolved lazily so normal build stays fast.
+    """
+    if image_url(post.get('thumbnail','')):
+        return image_url(post.get('thumbnail',''))
+    import io, re, subprocess, sys, urllib.request
+    from pathlib import Path
+    digest=hashlib.sha256((str(post['slug'])+'|'+str(post.get('title',''))+'|'+category_of(post)).encode('utf8')).hexdigest()
     folder=OUT/'assets'/'seo-covers'
     folder.mkdir(parents=True,exist_ok=True)
-    name=hashlib.sha256((slug+'|'+str(post.get('title') or '')).encode('utf-8')).hexdigest()[:24]+'.png'
-    (folder/name).write_bytes(png)
-    return '/assets/seo-covers/'+name
+    dest=folder/(digest[:24]+'.png')
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        try:
+            subprocess.run([sys.executable,'-m','pip','install','--quiet','Pillow>=10,<13'],check=True,timeout=110)
+            from PIL import Image, ImageDraw, ImageFont
+        except Exception as exc:
+            print('Title PNG unavailable: Pillow not installed:',exc)
+            return title_cover_svg(post)
+
+    def find_font():
+        for candidate in [
+            '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+            '/usr/share/fonts/truetype/nanum/NanumBarunGothicBold.ttf',
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
+            '/usr/share/fonts/truetype/noto/NotoSansKR-Bold.ttf',
+            '/usr/local/share/fonts/NanumGothicBold.ttf',
+        ]:
+            if Path(candidate).is_file():
+                return candidate
+        cache=ROOT/'.cache'/'nanum-gothic-bold.ttf'
+        if cache.is_file() and cache.stat().st_size>100000:
+            return str(cache)
+        try:
+            cache.parent.mkdir(parents=True,exist_ok=True)
+            url='https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Bold.ttf'
+            with urllib.request.urlopen(url,timeout=20) as response:
+                data=response.read(12000000)
+            if len(data)<100000 or len(data)>=12000000:raise ValueError('Unexpected font download length')
+            cache.write_bytes(data)
+            return str(cache)
+        except Exception as exc:
+            print('Korean font unavailable:',exc)
+            return None
+    global _seo_title_font
+    if '_seo_title_font' not in globals():_seo_title_font=find_font()
+    if not _seo_title_font:
+        return title_cover_svg(post)
+    font_path=_seo_title_font
+    title=str(post.get('title') or post.get('keyword') or '생활 정보 가이드').strip()
+    category=CATEGORIES[category_of(post)]
+    palettes={
+        'health':('#edf5f0','#183d32','#53927c'),
+        'fortune':('#f5eef6','#4d3563','#9876ae'),
+        'tattoo':('#edf0f3','#293742','#8194a0'),
+        'law':('#eef2f9','#233d60','#7390b5'),
+        'interior':('#f8f1eb','#5c4033','#b58870'),
+        'moving':('#edf5f7','#27576b','#7cacc1'),
+        'realestate':('#f1f5ed','#385841','#819c71'),
+        'finance':('#edf8f3','#185947','#66a58c'),
+        'tech':('#eef2fa','#314f80','#8296c1'),
+        'education':('#eef7f7','#245b61','#73a6a6'),
+        'travel':('#eef7fa','#245f7d','#7fb0c7'),
+        'shopping':('#faf2eb','#7d4d2a','#c39b76'),
+        'supplements':('#eff7ed','#3a674a','#88a88c'),
+        'general':('#eff5f1','#22483b','#79a08d'),
+    }
+    bg,ink,accent=palettes.get(category_of(post),palettes['general'])
+    w,h=960,540
+    im=Image.new('RGB',(w,h),bg)
+    draw=ImageDraw.Draw(im)
+    font_label=ImageFont.truetype(font_path,27)
+    font_brand=ImageFont.truetype(font_path,25)
+    max_width=w-150
+    # Wrap by measured pixel width so long Korean strings never overflow.
+    def lines_for(font):
+        words=re.findall(r'\S+\s*',title)
+        chunks=[]
+        current=''
+        for word in words:
+            word=word.strip()
+            attempt=(current+' '+word).strip()
+            if draw.textbbox((0,0),attempt,font=font)[2]<=max_width:
+                current=attempt
+                continue
+            if current:
+                chunks.append(current)
+                current=''
+            # Split long unbroken tokens by individual Korean characters.
+            for ch in word:
+                attempt=current+ch
+                if current and draw.textbbox((0,0),attempt,font=font)[2]>max_width:
+                    chunks.append(current);current=ch
+                else:current=attempt
+        if current:chunks.append(current)
+        return chunks
+    size=63
+    font=ImageFont.truetype(font_path,size)
+    lines=lines_for(font)
+    while len(lines)>3 and size>38:
+        size-=2
+        font=ImageFont.truetype(font_path,size)
+        lines=lines_for(font)
+    if len(lines)>3:
+        lines=lines[:3]
+        while lines[2] and draw.textbbox((0,0),lines[2]+'…',font=font)[2]>max_width:
+            lines[2]=lines[2][:-1]
+        lines[2]+='…'
+    # Editorial styling: simple, high contrast, generous breathing room.
+    draw.rounded_rectangle((59,53,260,104),radius=25,fill='#ffffff')
+    draw.text((83,60),category,font=font_label,fill=ink)
+    top=171 if len(lines)==1 else 146 if len(lines)==2 else 126
+    line_height=size+23
+    for i,line in enumerate(lines):
+        draw.text((69,top+i*line_height),line,font=font,fill=ink,stroke_width=0)
+    draw.line((67,450,w-67,450),fill=accent,width=2)
+    draw.text((69,473),'정보세상',font=font_brand,fill=ink)
+    # A small right-aligned series mark distinguishes categories without clutter.
+    draw.ellipse((874,475,890,491),fill=accent)
+    im.save(dest,format='PNG',optimize=True,compress_level=6)
+    if dest.stat().st_size<5000:
+        # Add subtle content-derived pixels to avoid a file below Naver's 5KB guideline.
+        for y in range(445,454):
+            for x in range(68,895):
+                if (x*17+y*13+int(digest[(x+y)%32],16))%11==0:
+                    im.putpixel((x,y),(max(0,int(ink[1:3],16)-3),max(0,int(ink[3:5],16)-2),max(0,int(ink[5:7],16)-3)))
+        im.save(dest,format='PNG',compress_level=1)
+    return '/assets/seo-covers/'+dest.name
 
 def title_cover_svg(post):
     """Always create an actual standalone SVG image with this article's title.
@@ -375,7 +442,7 @@ def card_image(post):
 def blog_card(post):
     # Manual thumbnail always wins. Otherwise use an actual article-title image.
     custom=image_url(post.get('thumbnail',''))
-    img=custom or post['_title_image']
+    img=custom or post['_seo_image']
     pic='<span class="blog-card-media"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'"></span>'
     path='/blog/'+esc(post['slug'])+'/'
     cat=CATEGORIES[category_of(post)]
@@ -384,8 +451,6 @@ def blog_card(post):
 posts.sort(key=lambda x:(str(x.get('updated_at') or x.get('imported_at') or x.get('created_at') or x.get('date') or ''),str(x.get('date','')),str(x.get('title',''))),reverse=True)
 # Generate every SEO preview before rendering either the list or the article.
 for post in posts:
-    post['_title_image']=title_cover_svg(post)
-    # Keep the separately rasterized PNG as a crawler-compatible OG fallback.
     post['_seo_image']=seo_preview_png(post)
 # Articles without a custom thumbnail use the same branded inquiry banner.
 for article in posts:
@@ -394,8 +459,8 @@ for article in posts:
     desc=article.get('description','')
     page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">'+esc(CATEGORIES[category_of(article)])+'</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
     uploaded_cover=image_url(article.get('thumbnail',''))
-    seo_image=uploaded_cover or article['_title_image']
-    og_image=uploaded_cover or article['_seo_image']
+    seo_image=uploaded_cover or article['_seo_image']
+    og_image=seo_image
     # Use the actual selected thumbnail in card, article and og:image.
     # If no image was uploaded, use the generated fallback preview.
     cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 대표 이미지" width="640" height="360" decoding="async"></figure>'
