@@ -132,6 +132,19 @@ for f in sorted((ROOT/'content'/'posts').glob('*.json')):
             posts.append(obj)
     except Exception as e:
         print('Skipped post',f.name,':',e)
+def indexable_post(post):
+    """Published posts are indexable unless an editor explicitly opts out.
+
+    A missing legacy seo_approved flag must not silently noindex live articles.
+    """
+    flag=post.get('seo_approved',None)
+    if isinstance(flag,str):
+        flag=flag.strip().lower()
+        if flag in ('false','0','no','off'):return False
+    if flag is False:return False
+    if str(post.get('robots') or '').lower().find('noindex')>=0:return False
+    return post.get('status')=='published'
+
 # Remove generator-only URL identifiers mistakenly included in SEO snippets.
 # A prefix is removed only when it looks like a machine slug (at least 2 hyphens).
 def strip_generator_prefix(value):
@@ -485,7 +498,7 @@ for article in posts:
     # Enable zoom on actual inline <img> elements. Explicit linked images still navigate.
     page+='<script defer src="/assets/image-lightbox.js"></script>'
     # Prefer a public, crawlable PNG in search previews over repeated SVG promos.
-    save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=og_image))
+    save(path,frame(title,desc,path,page,index=indexable_post(article),image=og_image))
 # Public metadata index used by the admin to avoid hundreds of individual
 # GitHub Content API requests. No private content or credentials are included.
 manifest=[]
@@ -614,14 +627,14 @@ for key in ('',*CATEGORIES.keys()):
     for page_number in range(2,total+1):
         sitemap_entries.append((listing_path(key,page_number),None))
 for x in posts:
-    if x.get('seo_approved',False) is True:
+    if indexable_post(x):
         sitemap_entries.append(('/blog/'+x['slug']+'/',str(x.get('updated_at') or x.get('imported_at') or x.get('created_at') or x.get('date') or '')[:10]))
 sitemap_xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n'
 # Include discoverable, actual image URLs for each index-approved article.
 # Inline images remain real <img src> elements in article HTML.
 image_by_path={}
 for post in posts:
-    if post.get('seo_approved') is not True:continue
+    if not indexable_post(post):continue
     page_path='/blog/'+post['slug']+'/'
     sources=[image_url(post.get('thumbnail')) or post['_seo_image']]
     sources.extend(html.unescape(src) for src in re.findall(r'!\\[[^\\]]*\\]\\(([^)\\s]+)\\)',str(post.get('body') or '')))
@@ -643,7 +656,7 @@ sitemap_xml+='</urlset>'
 
 # RSS 2.0 feed for Naver Search Advisor. Include only publicly available, indexable articles.
 rss_items=[]
-for post in sorted((p for p in posts if p.get('seo_approved') is True),key=lambda p:(str(p.get('updated_at') or p.get('imported_at') or p.get('created_at') or p.get('date') or ''),str(p.get('slug') or '')),reverse=True):
+for post in sorted((p for p in posts if indexable_post(p)),key=lambda p:(str(p.get('updated_at') or p.get('imported_at') or p.get('created_at') or p.get('date') or ''),str(p.get('slug') or '')),reverse=True):
     loc=DOMAIN+'/blog/'+quote(post['slug'],safe='-')+'/'
     title=esc(post.get('title') or post.get('keyword') or '정보세상 콘텐츠')
     description=esc(str(post.get('body') or post.get('description') or ''))
