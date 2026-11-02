@@ -142,9 +142,23 @@ $("upload-btn").addEventListener("click",async()=>{
    const r=await api("upload",{method:"POST",body:JSON.stringify({name:file.name,base64:content})});
    const result=$("upload-result");result.replaceChildren();
    const span=document.createElement("span");span.textContent=r.url;result.appendChild(span);
-   const btn=document.createElement("button");btn.className="quiet";btn.type="button";btn.textContent="본문에 삽입";
-   btn.onclick=()=>{$("body").value+="\n\n![이미지 설명]("+r.url+")\n\n";};
-   result.appendChild(btn);$("thumbnail").value=r.url;
+   const btn=document.createElement("button");btn.className="quiet";btn.type="button";btn.textContent="커서 위치에 본문 이미지 삽입";
+   btn.onclick=()=>{
+    const editor=$("body");
+    const start=editor.selectionStart==null?editor.value.length:editor.selectionStart;
+    const end=editor.selectionEnd==null?start:editor.selectionEnd;
+    const before=editor.value.slice(0,start),after=editor.value.slice(end);
+    const label=file.name.replace(/\.[^.]+$/,"").replace(/[\[\]()]/g," ").trim()||"본문 이미지";
+    const insert=(before&&!before.endsWith("\\n")?"\\n\\n":"")+"!["+label+"]("+r.url+")"+(after&&!after.startsWith("\\n")?"\\n\\n":"");
+    editor.setRangeText(insert,start,end,"end");
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
+    editor.focus();
+    editor.scrollTop=Math.max(0,editor.scrollHeight*(editor.selectionStart/Math.max(1,editor.value.length))-(editor.clientHeight/2));
+   };
+   result.appendChild(btn);
+   const coverBtn=document.createElement("button");coverBtn.className="quiet";coverBtn.type="button";coverBtn.textContent="대표 이미지로 지정";
+   coverBtn.onclick=()=>{$("thumbnail").value=r.url;};
+   result.appendChild(coverBtn);
   }catch(e){alert(e.message);}
  };
  reader.readAsDataURL(file);
