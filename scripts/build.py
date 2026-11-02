@@ -49,17 +49,47 @@ for r in published:
 # CMS markdown articles.
 import json, re
 def md_inline(line):
+    """Render safe Markdown image links, ordinary links and pasted bare URLs."""
     safe=esc(line)
-    def image_replace(m):
-        alt=m.group(1)
-        raw_url=html.unescape(m.group(2))
-        if not (raw_url.startswith('/assets/uploads/') or raw_url.startswith('https://') or raw_url.startswith('http://')):
+    fragments=[]
+    def keep(markup):
+        token='EMBEDTOKEN'+str(len(fragments))+'ENDTOKEN'
+        fragments.append(markup)
+        return token
+    def img_markup(alt, raw):
+        src=html.unescape(raw)
+        if not (src.startswith('/assets/uploads/') or src.startswith('https://') or src.startswith('http://')):
+            return None
+        return '<img src="'+esc(src)+'" alt="'+esc(html.unescape(alt))+'" loading="lazy" decoding="async" class="post-image">'
+    # Linked images: [![설명](이미지)](https://destination)
+    def linked_image(m):
+        img=img_markup(m.group(1),m.group(2))
+        target=html.unescape(m.group(3))
+        if img is None or not target.startswith(('https://','http://')):
             return m.group(0)
-        return '<img src="'+esc(raw_url)+'" alt="'+alt+'" loading="lazy" decoding="async" class="post-image">'
-    safe=re.sub(r'!\[([^\]]*)\]\(([^)\s]+)\)',image_replace,safe)
-    safe=re.sub(r'\[([^\]]+)\]\((https?://[^)\s]+)\)',lambda m:'<a href="'+esc(html.unescape(m.group(2)))+'" rel="noopener noreferrer">'+m.group(1)+'</a>',safe)
+        return keep('<a href="'+esc(target)+'" target="_blank" rel="noopener noreferrer" class="post-image-link">'+img+'</a>')
+    safe=re.sub(r'\[!\[([^\]]*)\]\(([^)\s]+)\)\]\((https?://[^)\s]+)\)',linked_image,safe)
+    def plain_image(m):
+        img=img_markup(m.group(1),m.group(2))
+        return keep(img) if img else m.group(0)
+    safe=re.sub(r'!\[([^\]]*)\]\(([^)\s]+)\)',plain_image,safe)
+    def named_link(m):
+        url=html.unescape(m.group(2))
+        return keep('<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+m.group(1)+'</a>')
+    safe=re.sub(r'\[([^\]]+)\]\((https?://[^)\s]+)\)',named_link,safe)
+    # URLs pasted directly into the body automatically become clickable.
+    # Exclude common sentence-final punctuation from the href.
+    def auto_link(m):
+        candidate=m.group(0)
+        url=candidate.rstrip('.,!?;:')
+        suffix=candidate[len(url):]
+        return keep('<a href="'+esc(html.unescape(url))+'" target="_blank" rel="noopener noreferrer">'+url+'</a>')+suffix
+    safe=re.sub(r'https?://[^\s<>"\']+',auto_link,safe)
     safe=re.sub(r'\*\*([^*]+)\*\*',r'<strong>\1</strong>',safe)
+    for index,markup in enumerate(fragments):
+        safe=safe.replace('EMBEDTOKEN'+str(index)+'ENDTOKEN',markup)
     return safe
+
 def markdown_to_html(source):
     result=[]; paragraph=[]; listing=[]
     def flush():
