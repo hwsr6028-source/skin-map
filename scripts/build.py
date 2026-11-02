@@ -443,7 +443,7 @@ sitemap_xml+='</urlset>'
 
 # RSS 2.0 feed for Naver Search Advisor. Include only publicly available, indexable articles.
 rss_items=[]
-for post in sorted((p for p in posts if p.get('seo_approved') is True),key=lambda p:(str(p.get('updated_at') or p.get('imported_at') or p.get('created_at') or p.get('date') or ''),str(p.get('slug') or '')),reverse=True)[:50]:
+for post in sorted((p for p in posts if p.get('seo_approved') is True),key=lambda p:(str(p.get('updated_at') or p.get('imported_at') or p.get('created_at') or p.get('date') or ''),str(p.get('slug') or '')),reverse=True):
     loc=DOMAIN+'/blog/'+quote(post['slug'],safe='-')+'/'
     title=esc(post.get('title') or post.get('keyword') or '정보세상 콘텐츠')
     description=esc(str(post.get('body') or post.get('description') or ''))
