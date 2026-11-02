@@ -473,6 +473,8 @@ for article in posts:
     related.sort(key=lambda p:str(p.get('imported_at') or p.get('updated_at') or p.get('date') or ''),reverse=True)
     related_html=('<nav class="related-articles" aria-label="관련 정보"><h2>같은 분야의 다른 글</h2><ul>'+''.join('<li><a href="/blog/'+quote(p['slug'],safe='-')+'/">'+esc(p.get('title',''))+'</a></li>' for p in related[:4])+'</ul></nav>') if related else ''
     page+='<section class="shell article-grid"><article class="article">'+cover_html+markdown_to_html(article.get('body',''))+related_html+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
+    # Enable zoom on actual inline <img> elements. Explicit linked images still navigate.
+    page+='<script defer src="/assets/image-lightbox.js"></script>'
     # Prefer a public, crawlable PNG in search previews over repeated SVG promos.
     save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=og_image))
 # Public metadata index used by the admin to avoid hundreds of individual
