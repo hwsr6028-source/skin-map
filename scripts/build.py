@@ -247,6 +247,13 @@ def seo_preview_png(post):
             bar_x=287+n*43
             if 270<=y<270+(digest[n+4]%30):
                 row[bar_x*3:(bar_x+25)*3]=bytes(ink)*25
+        # Fine-grained deterministic paper texture. In addition to improving the
+        # editorial appearance, avoid tiny PNGs below Naver's 5 KB guidance.
+        if 27<=y<335:
+            for x in range(29+(y%3),612,7):
+                if (x*17+y*29+digest[(x//7+y//11)%32])%13<4:
+                    p=x*3
+                    row[p:p+3]=bytes((min(255,row[p]+3),min(255,row[p+1]+4),min(255,row[p+2]+3)))
         pixels.append(0)
         pixels.extend(row)
     def chunk(name,payload):
@@ -266,13 +273,16 @@ def card_image(post):
     if cover:return cover
     return DEFAULT_INQUIRY_BANNER
 def blog_card(post):
-    img=card_image(post)
+    img=post.get('_seo_image') or card_image(post)
     pic=('<span class="blog-card-media"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'"></span>' if img else '<span class="blog-card-media blog-card-placeholder"><span>정보세상</span></span>')
     path='/blog/'+esc(post['slug'])+'/'
     cat=CATEGORIES[category_of(post)]
     date=str(post.get('date',''))[:10]
     return '<a class="blog-card" href="'+path+'">'+pic+'<span class="blog-card-copy"><span class="blog-card-meta">'+esc(cat)+' · '+esc(date)+'</span><strong>'+esc(post.get('title',''))+'</strong><span class="blog-card-description">'+esc(post.get('description',''))+'</span><span class="blog-card-more">글 읽기 ↗</span></span></a>'
 posts.sort(key=lambda x:(str(x.get('updated_at') or x.get('imported_at') or x.get('created_at') or x.get('date') or ''),str(x.get('date','')),str(x.get('title',''))),reverse=True)
+# Generate every SEO preview before rendering either the list or the article.
+for post in posts:
+    post['_seo_image']=seo_preview_png(post)
 # Articles without a custom thumbnail use the same branded inquiry banner.
 for article in posts:
     path='/blog/'+article['slug']+'/'
@@ -280,14 +290,18 @@ for article in posts:
     desc=article.get('description','')
     page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">'+esc(CATEGORIES[category_of(article)])+'</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
     cover=card_image(article)
-    cover_html='<figure class="article-cover"><img src="'+esc(cover)+'" alt="'+esc(title)+' 대표 이미지" width="1200" height="675" decoding="async"></figure>' if cover else ''
+    seo_image=article['_seo_image']
+    # Use the same visible image as og:image so crawlers can associate it with
+    # this article. The original advertising banner remains below as a CTA.
+    cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 정보 안내 대표 이미지" width="640" height="360" decoding="async"></figure>'
+    if cover and cover!=seo_image:
+        cover_html+='<figure class="article-cover inquiry-banner"><img src="'+esc(cover)+'" alt="정보세상 광고 상담 안내" width="1200" height="675" decoding="async" loading="lazy"></figure>'
     # Article-level HTML links expose additional pages to search crawlers.
     related=[p for p in posts if p['slug']!=article['slug'] and category_of(p)==category_of(article)]
     related.sort(key=lambda p:str(p.get('imported_at') or p.get('updated_at') or p.get('date') or ''),reverse=True)
     related_html=('<nav class="related-articles" aria-label="관련 정보"><h2>같은 분야의 다른 글</h2><ul>'+''.join('<li><a href="/blog/'+quote(p['slug'],safe='-')+'/">'+esc(p.get('title',''))+'</a></li>' for p in related[:4])+'</ul></nav>') if related else ''
     page+='<section class="shell article-grid"><article class="article">'+cover_html+markdown_to_html(article.get('body',''))+related_html+'<div class="disclaimer">본 콘텐츠는 일반적인 정보 제공 목적이며 개인별 상황에 맞는 전문 상담을 대신하지 않습니다.</div></article></section>'
     # Prefer a public, crawlable PNG in search previews over repeated SVG promos.
-    seo_image=seo_preview_png(article)
     save(path,frame(title,desc,path,page,index=bool(article.get('seo_approved',False)),image=seo_image))
 # Public metadata index used by the admin to avoid hundreds of individual
 # GitHub Content API requests. No private content or credentials are included.
