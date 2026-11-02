@@ -303,8 +303,11 @@ def card_image(post):
     if cover:return cover
     return DEFAULT_INQUIRY_BANNER
 def blog_card(post):
-    img=post.get('_seo_image') or card_image(post)
-    pic=('<span class="blog-card-media"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'"></span>' if img else '<span class="blog-card-media blog-card-placeholder"><span>정보세상</span></span>')
+    # Explicit user-uploaded thumbnail always wins over auto-generated graphics.
+    custom=image_url(post.get('thumbnail',''))
+    img=custom or post.get('_seo_image') or card_image(post)
+    title_overlay='' if custom else '<span class="blog-card-cover-caption"><span>'+esc(CATEGORIES[category_of(post)])+'</span><strong>'+esc(post.get('title',''))+'</strong></span>'
+    pic=('<span class="blog-card-media'+(' blog-card-auto-cover' if not custom else '')+'"><img loading="lazy" decoding="async" src="'+esc(img)+'" alt="'+esc(post.get('title',''))+'">'+title_overlay+'</span>' if img else '<span class="blog-card-media blog-card-placeholder"><span>정보세상</span></span>')
     path='/blog/'+esc(post['slug'])+'/'
     cat=CATEGORIES[category_of(post)]
     date=str(post.get('date',''))[:10]
@@ -319,13 +322,15 @@ for article in posts:
     title=article.get('title','')
     desc=article.get('description','')
     page='<section class="article-top"><div class="shell"><div class="crumb"><a href="/">홈</a> / <a href="/blog/">블로그</a></div><span class="kicker">'+esc(CATEGORIES[category_of(article)])+'</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div></section>'
-    cover=card_image(article)
-    seo_image=article['_seo_image']
-    # Use the same visible image as og:image so crawlers can associate it with
-    # this article. The original advertising banner remains below as a CTA.
-    cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 정보 안내 대표 이미지" width="640" height="360" decoding="async"></figure>'
-    if cover and cover!=seo_image:
-        cover_html+='<figure class="article-cover inquiry-banner"><img src="'+esc(cover)+'" alt="정보세상 광고 상담 안내" width="1200" height="675" decoding="async" loading="lazy"></figure>'
+    uploaded_cover=image_url(article.get('thumbnail',''))
+    seo_image=uploaded_cover or article['_seo_image']
+    # Use the actual selected thumbnail in card, article and og:image.
+    # If no image was uploaded, use the generated fallback preview.
+    cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 대표 이미지" width="640" height="360" decoding="async"></figure>'
+    # Keep the legacy advertising CTA in the body for articles with no
+    # uploaded thumbnail, without incorrectly promoting it to the cover.
+    if not uploaded_cover:
+        cover_html+='<figure class="article-cover inquiry-banner"><img src="'+esc(DEFAULT_INQUIRY_BANNER)+'" alt="정보세상 광고 상담 안내" width="1200" height="675" decoding="async" loading="lazy"></figure>'
     # Article-level HTML links expose additional pages to search crawlers.
     related=[p for p in posts if p['slug']!=article['slug'] and category_of(p)==category_of(article)]
     related.sort(key=lambda p:str(p.get('imported_at') or p.get('updated_at') or p.get('date') or ''),reverse=True)
