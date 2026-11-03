@@ -131,8 +131,7 @@ function refreshBulkControls(){
  const checked=current.filter(p=>selectedPosts.has(p.file)).length;
  $("select-visible").checked=current.length>0&&checked===current.length;
  $("select-visible").indeterminate=checked>0&&checked<current.length;
- $("bulk-trash").disabled=!chosen.some(p=>p.status!=="trash");
- $("bulk-restore").disabled=!chosen.some(p=>p.status==="trash");
+ $("bulk-trash").disabled=!chosen.length;
  $("bulk-category").disabled=!chosen.length;
 }
 function renderPosts(){
@@ -161,30 +160,11 @@ function renderPosts(){
      checkCell.append(checkbox);
      const titleCell=cell("col-title"),title=document.createElement("button");
      title.type="button";title.className="post-title-button";title.textContent=p.title||p.file;title.title=p.title||p.file;
-     if(p.status==="trash"){title.disabled=true;}else{title.addEventListener("click",()=>openPost(p.file));}
-     titleCell.append(title);
-     cell("col-category").textContent=categoryName(p.category);
-     cell("col-date").textContent=String(p.date||"").slice(0,10).replaceAll("-",". ");
-     const statusCell=cell("col-status");
-     const status=document.createElement("span");status.className=p.status==="published"?"status-live":p.status==="trash"?"status-trash":"status-draft";
-     status.textContent=p.status==="published"?"공개":p.status==="draft"?"임시":p.status==="trash"?"휴지통":"확인 필요";
-     statusCell.append(status);
-     const actions=cell("col-actions"),buttons=document.createElement("div");buttons.className="compact-row-actions";
-     const actionButton=(label,callback,kind)=>{
-       const b=document.createElement("button");b.type="button";b.textContent=label;
-       b.className="row-action "+kind;b.addEventListener("click",callback);buttons.append(b);
-     };
      if(p.status==="trash"){
-       actionButton("복원",()=>bulkAction("restore",[p]),"restore");
-       if(p.deleted_at){
-         const due=document.createElement("span");due.className="trash-due";
-         const expiry=new Date(p.deleted_at).getTime()+72*3600000;
-         if(Number.isFinite(expiry))due.title="삭제 예정: "+new Date(expiry).toLocaleString("ko-KR");
-         actions.append(due);
-       }
+       actionButton("영구 삭제",()=>bulkAction("delete",[p]),"remove");
      }else{
        actionButton("수정",()=>openPost(p.file),"edit");
-       actionButton("삭제",()=>bulkAction("trash",[p]),"remove");
+       actionButton("삭제",()=>bulkAction("delete",[p]),"remove");
      }
      actions.prepend(buttons);tbody.append(tr);
    }
@@ -227,14 +207,14 @@ $("select-visible").addEventListener("change",e=>{
 });
 async function bulkAction(action,custom=null){
  const selected=custom||allPosts.filter(p=>selectedPosts.has(p.file));
- const target=selected.filter(p=>action==="restore"?p.status==="trash":action==="trash"?p.status!=="trash":true);
+ const target=selected;
  if(!target.length)return alert("처리할 글을 선택하세요.");
  if(target.length>30)return alert("한 번에 최대 30개 글을 선택할 수 있습니다.");
- const label=action==="trash"?"휴지통으로 이동":action==="restore"?"복원":"카테고리 변경";
- if(!confirm(target.length+"개 글을 "+label+"하시겠습니까?"+(action==="trash"?"\n3일간 복원할 수 있으며, 이후 자동 삭제됩니다.":"")))return;
+ const label=action==="delete"?"영구 삭제":"카테고리 변경";
+ if(!confirm(target.length+"개 글을 "+label+"하시겠습니까?"+(action==="delete"?"\\n삭제 후 관리자에서 복원할 수 없습니다.":"")))return;
  let category=null;
  if(action==="category"){category=$("bulk-category-target").value;if(!category)return alert("변경할 카테고리를 선택하세요.");}
- const buttons=[$("bulk-trash"),$("bulk-restore"),$("bulk-category")];
+ const buttons=[$("bulk-trash"),$("bulk-category")];
  buttons.forEach(b=>b.disabled=true);
  $("message").textContent=label+" 진행 중...";
  try{
@@ -245,12 +225,11 @@ async function bulkAction(action,custom=null){
  }catch(err){$("message").textContent=label+" 실패: "+err.message;alert(err.message);}
  finally{refreshBulkControls();}
 }
-$("bulk-trash").onclick=()=>bulkAction("trash");
-$("bulk-restore").onclick=()=>bulkAction("restore");
+$("bulk-trash").onclick=()=>bulkAction("delete");
 $("bulk-category").onclick=()=>bulkAction("category");
 async function deletePost(file,sha,title){
  const p=allPosts.find(x=>x.file===file)||{file,sha,title,status:"published"};
- await bulkAction("trash",[p]);
+ await bulkAction("delete",[p]);
 }
 async function openPost(file){
  try{
