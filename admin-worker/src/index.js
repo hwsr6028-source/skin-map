@@ -322,8 +322,17 @@ export default {
     if(u.searchParams.get("refresh")!=="1"&&postsCache&&postsCache.repo===env.GITHUB_REPO&&postsCache.branch===(env.GITHUB_BRANCH||"main")&&Date.now()<postsCache.expires)
       return json({posts:postsCache.posts});
     const branch=env.GITHUB_BRANCH||"main";
-    const listing=await github(env,"GET","contents/content/posts?ref="+encodeURIComponent(branch));
-    const files=(Array.isArray(listing)?listing:[]).filter(x=>fileName(x.name));
+    // GitHub contents directory API silently caps results at 1,000 files.
+    // Use the full Git tree so recently created posts are never omitted.
+    const tree=await github(env,"GET","git/trees/"+encodeURIComponent(branch)+"?recursive=1");
+    if(tree.truncated || !Array.isArray(tree.tree))
+      throw {status:503,message:"전체 게시글 목록을 불러오지 못했습니다. GitHub 트리 조회를 확인하세요."};
+    const prefix="content/posts/";
+    const files=tree.tree
+      .filter(x=>x.type==="blob"&&x.path.startsWith(prefix)&&
+        !x.path.slice(prefix.length).includes("/"))
+      .map(x=>({name:x.path.slice(prefix.length),sha:x.sha}))
+      .filter(x=>fileName(x.name));
     // Use the site's build-generated metadata for published posts. This avoids
     // making hundreds of parallel GitHub reads (and false 'status unknown' rows).
     // Fall back to GitHub for new, unpublished or not-yet-deployed files.
