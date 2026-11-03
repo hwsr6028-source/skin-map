@@ -663,4 +663,7 @@ rss_xml+='<title>정보세상 블로그</title><link>'+esc(DOMAIN+'/blog/')+'</l
 rss_xml+=''.join(rss_items)+'</channel></rss>'
 (OUT/'rss.xml').write_text(rss_xml,encoding='utf8')
 
+# Verify generated images even when Cloudflare uses its existing build command.
+import runpy
+runpy.run_path(str(ROOT/'scripts'/'verify_naver_images.py'),run_name='__main__')
 print('Built',len(published)+len(posts)+2,'pages ->',OUT)
