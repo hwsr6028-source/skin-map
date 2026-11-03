@@ -17,6 +17,10 @@ for path in sorted(POSTS.glob("*.json")):
         print("Skip unreadable:", path.name, exc)
         continue
     if post.get("status") != "trash":
+        if post.get("deleted_at"):
+            post.pop("deleted_at", None)
+            path.write_text(json.dumps(post, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            changed.append(path.name)
         continue
     deleted_at = post.get("deleted_at")
     if not deleted_at:
