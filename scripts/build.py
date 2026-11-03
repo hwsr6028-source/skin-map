@@ -298,7 +298,7 @@ def seo_preview_png(post):
             raise RuntimeError('기본 상담 배너가 없습니다: '+str(banner))
         svg=banner.read_text(encoding='utf-8')
         # Remove all SVG text so the font resolver cannot output empty boxes.
-        svg=re.sub(r'<text\\b[^>]*>.*?</text>', '', svg, flags=re.S)
+        svg=re.sub(r'<text\b[^>]*>.*?</text>', '', svg, flags=re.S)
         raster=cairosvg.svg2png(bytestring=svg.encode('utf-8'),output_width=960,output_height=540)
         base=Image.open(io.BytesIO(raster)).convert('RGB')
         draw=ImageDraw.Draw(base)
