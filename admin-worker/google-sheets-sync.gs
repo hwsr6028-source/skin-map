@@ -131,6 +131,31 @@ function installDraftSyncTrigger() {
   ScriptApp.newTrigger('resetDraftImportOnEdit').forSpreadsheet(book).onEdit().create();
   console.log('5분 자동 동기화 및 B/C열 수정 시 재등록 상태 초기화 설정 완료.');
 }
+// Run manually for selected rows when another script rewrites the exact same
+// keyword/text without triggering onEdit (Google does not emit edit events for
+// programmatic changes). Select only rows intended to be re-published.
+function resetDraftImportRows() {
+  const sheet = SpreadsheetApp.openById(INFO_WORLD.SPREADSHEET_ID).getSheetById(INFO_WORLD.SHEET_GID);
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (!active || String(active.getId()) !== INFO_WORLD.SPREADSHEET_ID) {
+    throw new Error('연동된 원본 시트에서 다시 게시할 행을 선택해 주세요.');
+  }
+  const selected = active.getActiveRange();
+  if (!selected || selected.getSheet().getSheetId() !== INFO_WORLD.SHEET_GID) {
+    throw new Error('연동된 탭에서 행을 선택해 주세요.');
+  }
+  const props = PropertiesService.getScriptProperties();
+  const start = Math.max(INFO_WORLD.START_ROW, selected.getRow());
+  const end = selected.getLastRow();
+  if (end < start) throw new Error('10행 이후의 다시 게시할 행을 선택해 주세요.');
+  for (let row=start; row<=end; row++) {
+    const prefix='imported:' + INFO_WORLD.SHEET_GID + ':' + row;
+    props.deleteProperty(prefix);
+    props.deleteProperty(prefix + ':event');
+    props.deleteProperty(prefix + ':revision');
+  }
+  console.log('선택한 '+(end-start+1)+'개 행의 등록 기록을 초기화했습니다. syncSheetDrafts 실행 시 새 게시글로 등록합니다.');
+}
 function stopDraftSyncTrigger() {
   ScriptApp.getProjectTriggers()
     .filter(t => ['syncSheetDrafts','resetDraftImportOnEdit'].includes(t.getHandlerFunction()))
