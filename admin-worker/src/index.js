@@ -80,7 +80,7 @@ async function permanentDelete(env,items){
    tombstones.add(item.file.slice(0,-5));
  }
  const entries=items.map(item=>({path:"content/posts/"+item.file,mode:"100644",type:"blob",sha:null}));
- entries.push({path:"content/deleted-slugs.json",mode:"100644",type:"blob",content:JSON.stringify([...tombstones].sort(),null,2)+"\\n"});
+ entries.push({path:"content/deleted-slugs.json",mode:"100644",type:"blob",content:JSON.stringify([...tombstones].sort(),null,2)+"\n"});
  const tree=await github(env,"POST","git/trees",{base_tree:base.tree.sha,tree:entries});
  const commit=await github(env,"POST","git/commits",{message:"Permanently delete "+items.length+" selected articles",tree:tree.sha,parents:[head]});
  await github(env,"PATCH","git/refs/heads/"+encodeURIComponent(branch),{sha:commit.sha,force:false});
