@@ -230,16 +230,28 @@ export default {
        return json({error:"시트 연동 인증 실패"},401);
      const d=await input(req);
      const keyword=String(d.keyword||"").normalize("NFC").trim().slice(0,140);
-     const slug=slugify(keyword);
-     if(!slug||!fileName(slug+".json"))return json({error:"B열 키워드로 URL을 만들 수 없습니다."},422);
+     const baseSlug=slugify(keyword);
+     if(!baseSlug) return json({error:"B열 키워드로 URL을 만들 수 없습니다."},422);
      const {title,body}=parseSheetDraft(d.content,keyword);
+     // Every distinct sheet-writing event has a stable import ID. Identical
+     // keywords may be published repeatedly; retries of one event cannot
+     // create duplicate posts. Legacy clients use a content/row fingerprint.
+     const providedId=String(d.importId||"").trim();
+     if(providedId&&!/^[a-zA-Z0-9_-]{8,80}$/.test(providedId))
+       return json({error:"원고 작업 ID 형식이 올바르지 않습니다."},422);
+     const operationKey=providedId||[
+       String(d.sheetId||""),String(d.row||""),keyword,String(d.content||"")
+     ].join("\\n");
+     const fingerprint=hex(await digest(operationKey)).slice(0,16);
+     const slug=baseSlug.slice(0,110).replace(/-+$/,"")+"-"+fingerprint;
      const file=slug+".json";
+     if(!fileName(file))return json({error:"게시글 URL을 만들 수 없습니다."},422);
      const branch=env.GITHUB_BRANCH||"main";
      const filePath="contents/content/posts/"+encodeURIComponent(file);
-     // Protect all existing posts, including drafts, from being overwritten.
+     // Idempotent only for the *same import event*, not for the keyword.
      try{
        await github(env,"GET",filePath+"?ref="+encodeURIComponent(branch));
-       return json({ok:true,result:"exists",file,message:"같은 키워드의 기존 글이 있어 건너뛰었습니다."});
+       return json({ok:true,result:"exists",file,slug,message:"동일한 원고 작업은 이미 등록되어 있습니다."});
      }catch(e){if(e.status!==404)throw e;}
      const date=/^\d{4}-\d{2}-\d{2}$/.test(String(d.date||""))?String(d.date):new Date().toISOString().slice(0,10);
      const description=body.replace(/[#*\[\]<>]/g,"").replace(/\s+/g," ").slice(0,150);
@@ -247,7 +259,7 @@ export default {
        title,keyword,slug,category:categoryFor(keyword,title),description,body,
        thumbnail:"",date,status:"published",seo_approved:true,
        source:"google-sheets",source_sheet_id:String(d.sheetId||"").slice(0,80),
-       source_row:Number.isInteger(d.row)&&d.row>=1?d.row:null,imported_at:new Date().toISOString()
+       source_row:Number.isInteger(d.row)&&d.row>=1?d.row:null,\n       source_import_id:providedId||fingerprint,imported_at:new Date().toISOString()
      };
      try{
        await github(env,"PUT",filePath,{message:"Import Google Sheets draft: "+title,content:encodeFile(article),branch});
@@ -256,7 +268,7 @@ export default {
        if(e.status===422||e.status===409)return json({ok:false,error:"중복 등록 충돌: 다시 시도 전에 관리자 목록을 확인해 주세요."},409);
        throw e;
      }
-     return json({ok:true,result:"created",file,category:article.category});
+     return json({ok:true,result:"created",file,slug,category:article.category});
    }
    if(path==="/api/analytics"&&req.method==="GET"){
      if(!gaOAuthReady(env))return json({configured:false,message:"Google OAuth 클라이언트 연결 설정이 필요합니다."});
