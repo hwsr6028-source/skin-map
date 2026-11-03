@@ -1,37 +1,42 @@
 #!/usr/bin/env python3
-"""Immediately remove all old trash posts, preserving only deleted slugs.
+"""Mark CMS trash dates and purge only items older than 72 hours.
 
-Published and draft posts are never modified or deleted. This is an idempotent
-migration for the previous 72-hour trash system.
+Runs via GitHub Actions. Live and draft posts are never deleted.
+Restore by changing status from trash to published/draft before expiration.
 """
-import json
-from pathlib import Path
-
-ROOT=Path(__file__).resolve().parents[1]
-POSTS=ROOT/"content"/"posts"
-DELETED=ROOT/"content"/"deleted-slugs.json"
-if DELETED.exists():
-    previous=json.loads(DELETED.read_text(encoding="utf-8"))
-    if not isinstance(previous,list):
-        raise RuntimeError("Deleted-slug registry must be a JSON array")
-    slugs=set(x for x in previous if isinstance(x,str))
-else:
-    slugs=set()
-removed=[]
-unreadable=[]
+import datetime, json, pathlib, subprocess
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+POSTS = ROOT / "content" / "posts"
+NOW = datetime.datetime.now(datetime.timezone.utc)
+changed = []
+deleted = []
 for path in sorted(POSTS.glob("*.json")):
     try:
-        post=json.loads(path.read_text(encoding="utf-8"))
-    except (ValueError,OSError) as exc:
-        unreadable.append((path.name,str(exc)))
+        post = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as exc:
+        print("Skip unreadable:", path.name, exc)
         continue
-    if post.get("status")!="trash":
+    if post.get("status") != "trash":
+        if post.get("deleted_at"):
+            post.pop("deleted_at", None)
+            path.write_text(json.dumps(post, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            changed.append(path.name)
         continue
-    slugs.add(path.stem)
-    path.unlink()
-    removed.append(path.name)
-DELETED.parent.mkdir(parents=True,exist_ok=True)
-DELETED.write_text(json.dumps(sorted(slugs),ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-print("Permanently deleted",len(removed),"trash articles; retained",len(slugs),"blocked slugs")
-for item in removed: print("DELETED",item)
-for name,error in unreadable:print("UNREADABLE (NOT deleted)",name,error)
+    deleted_at = post.get("deleted_at")
+    if not deleted_at:
+        post["deleted_at"] = NOW.isoformat(timespec="seconds").replace("+00:00", "Z")
+        path.write_text(json.dumps(post, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        changed.append(path.name)
+        continue
+    try:
+        stamp = datetime.datetime.fromisoformat(str(deleted_at).replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            print("Skip ambiguous deletion date:", path.name)
+            continue
+    except (ValueError, TypeError):
+        print("Skip invalid deletion date:", path.name)
+        continue
+    if NOW - stamp >= datetime.timedelta(hours=72):
+        path.unlink()
+        deleted.append(path.name)
+print("Timestamped:", changed, "Purged:", deleted)
