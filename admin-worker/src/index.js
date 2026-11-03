@@ -49,6 +49,44 @@ async function github(env,method,path,body){
   if(!result.ok)throw {status:result.status,message:data.message||"GitHub 요청 오류"};
   return data;
 }
+// GitHub source is removed immediately; only slugs are retained to prevent Sheet re-import.
+async function deletedSlugSet(env){
+ const branch=env.GITHUB_BRANCH||"main";
+ try{
+   const r=await github(env,"GET","contents/content/deleted-slugs.json?ref="+encodeURIComponent(branch));
+   const content=decodeFile(r.content);
+   return new Set(Array.isArray(content)?content.filter(x=>typeof x==="string"):[]);
+ }catch(e){if(e.status===404)return new Set();throw e;}
+}
+async function permanentDelete(env,items){
+ const branch=env.GITHUB_BRANCH||"main";
+ if(!Array.isArray(items)||!items.length||items.length>30)throw {status:400,message:"한 번에 1~30개만 삭제할 수 있습니다."};
+ const seen=new Set();
+ for(const item of items){
+   if(!fileName(item.file)||typeof item.sha!=="string"||!/^[a-f0-9]{40}$/.test(item.sha)||seen.has(item.file))
+     throw {status:400,message:"삭제할 글 정보가 올바르지 않습니다."};
+   seen.add(item.file);
+ }
+ const ref=await github(env,"GET","git/ref/heads/"+encodeURIComponent(branch));
+ const head=ref.object.sha;
+ const [base,listing,tombstones]=await Promise.all([
+   github(env,"GET","git/commits/"+head),
+   github(env,"GET","contents/content/posts?ref="+encodeURIComponent(head)),
+   deletedSlugSet(env)
+ ]);
+ const files=new Map((Array.isArray(listing)?listing:[]).map(x=>[x.name,x.sha]));
+ for(const item of items){
+   if(files.get(item.file)!==item.sha)throw {status:409,message:"선택한 글이 변경되었습니다. 새로고침 후 다시 삭제하세요."};
+   tombstones.add(item.file.slice(0,-5));
+ }
+ const entries=items.map(item=>({path:"content/posts/"+item.file,mode:"100644",type:"blob",sha:null}));
+ entries.push({path:"content/deleted-slugs.json",mode:"100644",type:"blob",content:JSON.stringify([...tombstones].sort(),null,2)+"\\n"});
+ const tree=await github(env,"POST","git/trees",{base_tree:base.tree.sha,tree:entries});
+ const commit=await github(env,"POST","git/commits",{message:"Permanently delete "+items.length+" selected articles",tree:tree.sha,parents:[head]});
+ await github(env,"PATCH","git/refs/heads/"+encodeURIComponent(branch),{sha:commit.sha,force:false});
+ postsCache=null;
+ return {ok:true,deleted:items.length,commit:commit.sha};
+}
 const IMPORT_CATEGORIES=[
  ["fortune",/점집|사주|운세|타로|신점|철학관|무속/],
  ["tattoo",/타투|문신|반영구|타투이스트|레터링타투/],
@@ -234,6 +272,7 @@ export default {
      if(!slug||!fileName(slug+".json"))return json({error:"B열 키워드로 URL을 만들 수 없습니다."},422);
      const {title,body}=parseSheetDraft(d.content,keyword);
      const file=slug+".json";
+     if((await deletedSlugSet(env)).has(slug))return json({ok:true,result:"deleted",file,message:"관리자에서 영구 삭제한 글이므로 다시 가져오지 않습니다."});
      const branch=env.GITHUB_BRANCH||"main";
      const filePath="contents/content/posts/"+encodeURIComponent(file);
      // Protect all existing posts, including drafts, from being overwritten.
@@ -443,11 +482,15 @@ export default {
    if(path==="/api/posts/bulk"&&req.method==="POST"){
      const data=await input(req);
      const action=String(data.action||"");
-     const allowedCategories=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","fortune","tattoo","shopping","supplements"]);
-     if(!["trash","restore","category"].includes(action))return json({error:"지원하지 않는 작업입니다."},400);
      const items=data.items;
-     if(!Array.isArray(items)||!items.length||items.length>30)return json({error:"한 번에 1~30개 글을 선택하세요."},400);
-     if(action==="category"&&!allowedCategories.has(data.category))return json({error:"카테고리가 올바르지 않습니다."},400);
+     if(!Array.isArray(items)||!items.length||items.length>30)return json({error:"1~30개 글을 선택하세요."},400);
+     if(action==="delete"||action==="trash"){
+       const done=await permanentDelete(env,items);
+       return json({...done,success:done.deleted,failed:0,results:items.map(x=>({file:x.file,ok:true}))});
+     }
+     if(action!=="category")return json({error:"지원하지 않는 작업입니다."},400);
+     const allowed=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","fortune","tattoo","shopping","supplements"]);
+     if(!allowed.has(data.category))return json({error:"카테고리가 올바르지 않습니다."},400);
      const branch=env.GITHUB_BRANCH||"main",results=[];
      for(const item of items){
        const file=item?.file,sha=item?.sha;
@@ -456,22 +499,11 @@ export default {
        }
        try{
          const current=await github(env,"GET","contents/content/posts/"+encodeURIComponent(file)+"?ref="+encodeURIComponent(branch));
-         if(current.sha!==sha){results.push({file,ok:false,error:"다른 곳에서 수정된 글입니다. 새로고침 후 다시 선택하세요."});continue;}
+         if(current.sha!==sha){results.push({file,ok:false,error:"변경된 글입니다. 다시 불러오세요."});continue;}
          const article=decodeFile(current.content);
-         if(action==="trash"){
-           if(article.status==="trash"){results.push({file,ok:true});continue;}
-           article.status="trash";article.deleted_at=new Date().toISOString();
-         }else if(action==="restore"){
-           if(article.status!=="trash"){results.push({file,ok:false,error:"휴지통의 글이 아닙니다."});continue;}
-           article.status="published";delete article.deleted_at;
-           article.updated_at=new Date().toISOString();
-         }else{
-           article.category=data.category;
-           article.updated_at=new Date().toISOString();
-         }
+         article.category=data.category;article.updated_at=new Date().toISOString();
          await github(env,"PUT","contents/content/posts/"+encodeURIComponent(file),{
-           message:(action==="trash"?"Move to trash: ":action==="restore"?"Restore article: ":"Change category: ")+file,
-           content:encodeFile(article),sha:current.sha,branch
+           message:"Change category: "+file,content:encodeFile(article),sha:current.sha,branch
          });
          results.push({file,ok:true});
        }catch(e){results.push({file,ok:false,error:String(e.message||"처리 실패").slice(0,180)});}
@@ -480,23 +512,9 @@ export default {
      return json({ok:results.some(x=>x.ok),results,success:results.filter(x=>x.ok).length,failed:results.filter(x=>!x.ok).length});
    }
    if(path==="/api/post"&&req.method==="DELETE"){
-     // Soft-delete only: public build excludes trash, 72h cleanup is handled by GitHub Actions.
-     const data=await input(req),file=data.file,sha=data.sha;
-     if(!fileName(file)||typeof sha!=="string"||!/^[a-f0-9]{40}$/.test(sha))
-       return json({error:"삭제할 글의 파일 정보가 올바르지 않습니다."},400);
-     const branch=env.GITHUB_BRANCH||"main";
-     const current=await github(env,"GET","contents/content/posts/"+encodeURIComponent(file)+"?ref="+encodeURIComponent(branch));
-     if(current.sha!==sha)return json({error:"다른 곳에서 수정된 글입니다. 목록을 새로고침하세요."},409);
-     const article=decodeFile(current.content);
-     if(article.status!=="trash"){
-       article.status="trash";
-       article.deleted_at=new Date().toISOString();
-       await github(env,"PUT","contents/content/posts/"+encodeURIComponent(file),{
-         message:"Move article to trash: "+file,sha:current.sha,content:encodeFile(article),branch
-       });
-     }
-     postsCache=null;
-     return json({ok:true,file,recoverable:true});
+     const data=await input(req);
+     const done=await permanentDelete(env,[{file:data.file,sha:data.sha}]);
+     return json({...done,file:data.file});
    }
    if(path==="/api/upload"&&req.method==="POST"){
      const d=await input(req);
