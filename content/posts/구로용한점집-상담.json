@@ -8,9 +8,10 @@
   "region": "",
   "procedure": "",
   "date": "2026-11-03",
-  "status": "published",
+  "status": "trash",
   "seo_approved": true,
   "slug": "구로용한점집-상담",
   "updated_at": "2026-11-03T07:42:06.017Z",
-  "previous_slugs": []
+  "previous_slugs": [],
+  "deleted_at": "2026-11-03T08:52:56.349Z"
 }
