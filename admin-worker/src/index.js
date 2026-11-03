@@ -348,7 +348,7 @@ export default {
             const category=effectiveCategory(article);
             return {file:f.name,sha:r.sha,title:String(article.title||f.name),
               category,status:["published","draft","trash"].includes(article.status)?article.status:"draft",
-              date:String(article.date||"").slice(0,10),
+              date:String(article.date||"").slice(0,10),deleted_at:String(article.deleted_at||""),
               latestAt:String(article.updated_at||article.imported_at||article.created_at||article.date||""),
               sourceRow:Number(article.source_row)||0};
           }catch(e){
