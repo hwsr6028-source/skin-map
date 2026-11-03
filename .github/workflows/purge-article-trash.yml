@@ -1,12 +1,15 @@
-name: Purge expired article trash
+name: Permanently purge legacy article trash
 on:
-  schedule:
-    - cron: "17 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - scripts/purge_trash.py
+      - .github/workflows/purge-article-trash.yml
   workflow_dispatch:
 permissions:
   contents: write
 concurrency:
-  group: purge-article-trash
+  group: permanent-article-trash-cleanup
   cancel-in-progress: false
 jobs:
   cleanup:
@@ -18,15 +21,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Stamp and purge expired trash
+      - name: Remove all legacy trash immediately
         run: python3 scripts/purge_trash.py
-      - name: Commit trash changes
+      - name: Commit deletion of only trash posts and blocked slugs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A content/posts
+          git add -A content/posts content/deleted-slugs.json
           if ! git diff --cached --quiet; then
-            git commit -m "Maintain article trash and purge after 72 hours"
+            git commit -m "Permanently purge old trash articles and block reimport"
             git pull --rebase origin main
             git push origin HEAD:main
           fi
