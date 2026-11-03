@@ -140,3 +140,37 @@
 .post-pages{display:flex;align-items:center;justify-content:center;gap:10px;margin:18px 0 0;font-size:12px}
 .post-pages button{width:auto!important;border:1px solid #d1e0d4!important;border-radius:7px;font-size:11px!important;padding:7px 12px!important}
 .trash-due{color:#ad5656!important}
+
+/* Naver-blog-style compact article list: ten rows per page */
+.workspace{grid-template-columns:minmax(420px,1fr) minmax(0,1.32fr);align-items:start}
+.workspace aside{min-width:0;padding:22px}
+.post-table-scroll{width:100%;overflow-x:auto}
+.post-management-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
+.post-management-table th{font-weight:600;font-size:11px;color:#829087;text-align:left;background:#f8faf8;padding:11px 7px;border-bottom:1px solid #cad8cd;white-space:nowrap}
+.post-management-table td{padding:10px 7px;border-bottom:1px solid #e6ece8;vertical-align:middle;line-height:1.45;color:#65786b}
+.post-management-table tr:hover td{background:#f8faf8}
+.post-management-table .col-select{width:37px;text-align:center}
+.post-management-table .col-title{width:auto}
+.post-management-table .col-category{width:83px}
+.post-management-table .col-date{width:84px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.post-management-table .col-status{width:51px}
+.post-management-table .col-actions{width:91px}
+.post-title-button{background:none!important;border:none!important;padding:0!important;display:block!important;width:100%!important;text-align:left!important;font-size:12px!important;color:#223b2c!important;line-height:1.45!important;font-weight:600!important;overflow-wrap:anywhere;cursor:pointer}
+.post-title-button:hover{text-decoration:underline}
+.post-title-button:disabled{color:#859188!important;cursor:default}
+.post-management-table .post-select-checkbox{margin:0;vertical-align:middle}
+.post-management-table .status-live,.post-management-table .status-draft,.post-management-table .status-trash{font-size:10px;font-weight:700;padding:2px 4px;border-radius:4px;white-space:nowrap}
+.post-management-table .status-live{background:#e8f5eb;color:#32684b}
+.post-management-table .status-draft{background:#f2eee7;color:#886e43}
+.post-management-table .status-trash{background:#fbecea;color:#ad5851}
+.compact-row-actions{display:flex;gap:4px;justify-content:flex-end;flex-wrap:nowrap}
+.workspace aside .compact-row-actions .row-action{width:auto;display:inline-block;text-align:center;border-radius:5px;border:1px solid #d6e4da;background:#fff;color:#386447;font-size:10px;font-weight:650;padding:4px 5px;white-space:nowrap;cursor:pointer}
+.workspace aside .compact-row-actions .row-action.remove{color:#aa514d;border-color:#edd8d6}
+.workspace aside .compact-row-actions .row-action:hover{background:#eef5f0}
+.post-pages{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px;margin:18px 0 4px}
+.workspace aside .post-pages .page-number{width:auto!important;min-width:30px!important;border:1px solid transparent!important;border-radius:3px!important;background:#fff!important;color:#53665a!important;padding:6px 8px!important;text-align:center!important;font-weight:500!important;font-size:12px!important}
+.workspace aside .post-pages .page-number.is-current{border-color:#c7d8cb!important;color:#c43e35!important;font-weight:800!important}
+.workspace aside .post-pages .page-number:disabled{color:#b6c2b9!important;cursor:default}
+.post-pages .page-number[aria-current=page]{pointer-events:none}
+@media(max-width:1080px){.workspace{grid-template-columns:minmax(0,1fr)}.workspace aside{max-height:none}.post-management-table .col-title{min-width:180px}}
+@media(max-width:620px){.workspace aside{padding:14px}.post-management-table{min-width:560px}.post-management-table td,.post-management-table th{padding:9px 5px}}
