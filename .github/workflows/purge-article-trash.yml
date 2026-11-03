@@ -1,0 +1,32 @@
+name: Purge expired article trash
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: purge-article-trash
+  cancel-in-progress: false
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Stamp and purge expired trash
+        run: python3 scripts/purge_trash.py
+      - name: Commit trash changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A content/posts
+          if ! git diff --cached --quiet; then
+            git commit -m "Maintain article trash and purge after 72 hours"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
