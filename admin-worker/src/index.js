@@ -347,7 +347,7 @@ export default {
             const article=decodeFile(r.content);
             const category=effectiveCategory(article);
             return {file:f.name,sha:r.sha,title:String(article.title||f.name),
-              category,status:article.status==="published"?"published":"draft",
+              category,status:["published","draft","trash"].includes(article.status)?article.status:"draft",
               date:String(article.date||"").slice(0,10),
               latestAt:String(article.updated_at||article.imported_at||article.created_at||article.date||""),
               sourceRow:Number(article.source_row)||0};
@@ -440,23 +440,63 @@ export default {
     }
     return json({ok:true,file,renamed:rename,url:"https://skin-map.pages.dev/blog/"+encodeURIComponent(slug)+"/"});
    }
+   if(path==="/api/posts/bulk"&&req.method==="POST"){
+     const data=await input(req);
+     const action=String(data.action||"");
+     const allowedCategories=new Set(["health","law","interior","moving","realestate","finance","tech","education","travel","general","fortune","tattoo","shopping","supplements"]);
+     if(!["trash","restore","category"].includes(action))return json({error:"지원하지 않는 작업입니다."},400);
+     const items=data.items;
+     if(!Array.isArray(items)||!items.length||items.length>30)return json({error:"한 번에 1~30개 글을 선택하세요."},400);
+     if(action==="category"&&!allowedCategories.has(data.category))return json({error:"카테고리가 올바르지 않습니다."},400);
+     const branch=env.GITHUB_BRANCH||"main",results=[];
+     for(const item of items){
+       const file=item?.file,sha=item?.sha;
+       if(!fileName(file)||typeof sha!=="string"||!/^[a-f0-9]{40}$/.test(sha)){
+         results.push({file:String(file||""),ok:false,error:"파일 정보 오류"});continue;
+       }
+       try{
+         const current=await github(env,"GET","contents/content/posts/"+encodeURIComponent(file)+"?ref="+encodeURIComponent(branch));
+         if(current.sha!==sha){results.push({file,ok:false,error:"다른 곳에서 수정된 글입니다. 새로고침 후 다시 선택하세요."});continue;}
+         const article=decodeFile(current.content);
+         if(action==="trash"){
+           if(article.status==="trash"){results.push({file,ok:true});continue;}
+           article.status="trash";article.deleted_at=new Date().toISOString();
+         }else if(action==="restore"){
+           if(article.status!=="trash"){results.push({file,ok:false,error:"휴지통의 글이 아닙니다."});continue;}
+           article.status="published";delete article.deleted_at;
+           article.updated_at=new Date().toISOString();
+         }else{
+           article.category=data.category;
+           article.updated_at=new Date().toISOString();
+         }
+         await github(env,"PUT","contents/content/posts/"+encodeURIComponent(file),{
+           message:(action==="trash"?"Move to trash: ":action==="restore"?"Restore article: ":"Change category: ")+file,
+           content:encodeFile(article),sha:current.sha,branch
+         });
+         results.push({file,ok:true});
+       }catch(e){results.push({file,ok:false,error:String(e.message||"처리 실패").slice(0,180)});}
+     }
+     postsCache=null;
+     return json({ok:results.some(x=>x.ok),results,success:results.filter(x=>x.ok).length,failed:results.filter(x=>!x.ok).length});
+   }
    if(path==="/api/post"&&req.method==="DELETE"){
-    // Only authenticated admin may delete. GitHub requires current blob SHA.
-    const data=await input(req);
-    const file=data.file,sha=data.sha;
-    if(!fileName(file)||typeof sha!=="string"||!/^[a-f0-9]{40}$/.test(sha))
-      return json({error:"삭제할 글의 파일 정보가 올바르지 않습니다. 글을 다시 선택해 주세요."},400);
-    try{
-      await github(env,"DELETE","contents/content/posts/"+encodeURIComponent(file),{
-        message:"Delete article "+file,sha,branch:env.GITHUB_BRANCH||"main"
-      });
-      postsCache=null;
-    }catch(e){
-      if(e.status===409||e.status===422)
-        throw {status:409,message:"다른 변경사항이 있어 삭제하지 못했습니다. 글을 다시 불러온 뒤 시도해 주세요."};
-      throw e;
-    }
-    return json({ok:true,file});
+     // Soft-delete only: public build excludes trash, 72h cleanup is handled by GitHub Actions.
+     const data=await input(req),file=data.file,sha=data.sha;
+     if(!fileName(file)||typeof sha!=="string"||!/^[a-f0-9]{40}$/.test(sha))
+       return json({error:"삭제할 글의 파일 정보가 올바르지 않습니다."},400);
+     const branch=env.GITHUB_BRANCH||"main";
+     const current=await github(env,"GET","contents/content/posts/"+encodeURIComponent(file)+"?ref="+encodeURIComponent(branch));
+     if(current.sha!==sha)return json({error:"다른 곳에서 수정된 글입니다. 목록을 새로고침하세요."},409);
+     const article=decodeFile(current.content);
+     if(article.status!=="trash"){
+       article.status="trash";
+       article.deleted_at=new Date().toISOString();
+       await github(env,"PUT","contents/content/posts/"+encodeURIComponent(file),{
+         message:"Move article to trash: "+file,sha:current.sha,content:encodeFile(article),branch
+       });
+     }
+     postsCache=null;
+     return json({ok:true,file,recoverable:true});
    }
    if(path==="/api/upload"&&req.method==="POST"){
      const d=await input(req);
