@@ -20,7 +20,7 @@ slug:
 
 collections:
   - name: articles
-    label: 정보세상 · 글 작성
+    label: 정보세상 · 글관리 / 작성
     label_singular: 정보 글
     folder: content/posts
     create: true
@@ -28,7 +28,7 @@ collections:
     format: json
     extension: json
     identifier_field: title
-    summary: "{{title}} | {{category}}"
+    summary: "{{title}} | {{category}} | {{status}}"
     slug:
       template: "{{keyword}}"
       editable: [create]
@@ -96,9 +96,16 @@ collections:
         options:
           - { label: "임시저장 (사이트에 미노출)", value: draft }
           - { label: "홈페이지에 공개", value: published }
+          - { label: "휴지통 이동 (3일 후 영구 삭제)", value: trash }
         default: draft
       - name: seo_approved
         label: "검색 노출 허용 (Google·Naver)"
         widget: boolean
         default: true
         hint: "새 글은 기본적으로 검색 허용입니다. 공개 전 사실 확인과 출처 검토를 완료하세요. 비공개·검토 중 글은 끄세요."
+
+      - name: deleted_at
+        label: "휴지통 이동 시각 (시스템 관리 / 수정하지 마세요)"
+        widget: string
+        required: false
+        hint: "휴지통으로 이동한 글은 자동 작업에서 UTC 시각을 기록합니다. 발행으로 되돌리면 복원됩니다."
