@@ -259,7 +259,8 @@ export default {
        title,keyword,slug,category:categoryFor(keyword,title),description,body,
        thumbnail:"",date,status:"published",seo_approved:true,
        source:"google-sheets",source_sheet_id:String(d.sheetId||"").slice(0,80),
-       source_row:Number.isInteger(d.row)&&d.row>=1?d.row:null,\n       source_import_id:providedId||fingerprint,imported_at:new Date().toISOString()
+       source_row:Number.isInteger(d.row)&&d.row>=1?d.row:null,
+       source_import_id:providedId||fingerprint,imported_at:new Date().toISOString()
      };
      try{
        await github(env,"PUT",filePath,{message:"Import Google Sheets draft: "+title,content:encodeFile(article),branch});
