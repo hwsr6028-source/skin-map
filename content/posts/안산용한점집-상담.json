@@ -8,9 +8,10 @@
   "region": "",
   "procedure": "",
   "date": "2026-11-03",
-  "status": "published",
+  "status": "trash",
   "seo_approved": true,
   "slug": "안산용한점집-상담",
   "updated_at": "2026-11-03T08:01:03.901Z",
-  "previous_slugs": []
+  "previous_slugs": [],
+  "deleted_at": "2026-11-03T08:52:54.652Z"
 }
