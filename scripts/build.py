@@ -270,6 +270,32 @@ def seo_preview_png(post):
             print('Title PNG unavailable: Pillow not installed:',exc)
             raise RuntimeError('SEO PNG 생성 실패: Pillow 설치 필요') from exc
 
+    # Keep the approved consultation banner design, producing a real PNG
+    # for each article with barely perceptible, deterministic tonal changes.
+    # These changes are design variations, not a promise of Naver uniqueness.
+    global _seo_inquiry_base
+    if '_seo_inquiry_base' not in globals():
+        banner=ROOT/'assets'/'uploads'/'default-inquiry-banner.svg'
+        if not banner.is_file():
+            raise RuntimeError('기본 상담 배너가 없습니다: '+str(banner))
+        try:
+            import cairosvg
+        except ImportError:
+            subprocess.run([sys.executable,'-m','pip','install','--quiet','CairoSVG>=2.7,<3'],check=True,timeout=110)
+            import cairosvg
+        raster=cairosvg.svg2png(url=str(banner),output_width=960,output_height=540)
+        _seo_inquiry_base=Image.open(io.BytesIO(raster)).convert('RGB')
+    from PIL import ImageEnhance
+    # Maximum 1.2% brightness and 1.6% saturation shifts.
+    # Never alter copy, telephone digits, crop, or layout.
+    seed=int(digest[:12],16)
+    brightness=1.0+((seed%241)-120)/10000.0
+    saturation=1.0+(((seed//241)%321)-160)/10000.0
+    im=ImageEnhance.Brightness(_seo_inquiry_base).enhance(brightness)
+    im=ImageEnhance.Color(im).enhance(saturation)
+    im.save(dest,format='PNG',optimize=True,compress_level=6)
+    return '/assets/seo-covers/'+dest.name
+
     def find_font():
         for candidate in [
             '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
