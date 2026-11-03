@@ -1,6 +1,9 @@
 const $=id=>document.getElementById(id);
 let editFile=null,editSha=null,editingSlug="";
 let allPosts=[],activeCategory="all";
+const selectedPosts=new Set();
+let postPage=1;
+const PAGE_SIZE=30;
 const categories=[["health","병원·건강"],["law","법률"],["interior","인테리어"],["moving","이사·생활"],["realestate","부동산"],["finance","금융·경제"],["tech","IT·디지털"],["education","교육·취업"],["travel","여행·취미"],["general","비즈니스·기타"],["fortune","점집"],["tattoo","타투"],["shopping","구매대행"],["supplements","건강식품"]];
 const categoryName=id=>categories.find(x=>x[0]===id)?.[1]||"미분류";
 const fields=["title","keyword","description","category","thumbnail","body","region","procedure","date","status"];
@@ -112,53 +115,114 @@ function renderCategories(){
    const num=document.createElement("strong");num.className="category-stat-count";
    num.textContent=String(key==="all"?allPosts.filter(p=>p.status==="published").length:counts[key]||0);
    button.append(name,num);
-   button.onclick=()=>{activeCategory=key;renderCategories();renderPosts();};
+   button.onclick=()=>{activeCategory=key;postPage=1;selectedPosts.clear();renderCategories();renderPosts();};
    stats.appendChild(button);
  }
 }
+function shownPosts(){
+ const query=$("post-search").value.trim().toLowerCase(),state=$("status-filter").value;
+ return allPosts.filter(p=>(activeCategory==="all"||p.category===activeCategory)&&(state==="all"||p.status===state)&&(!query||[p.title,p.file,p.date,categoryName(p.category)].join(" ").toLowerCase().includes(query)));
+}
+function refreshBulkControls(){
+ const chosen=allPosts.filter(p=>selectedPosts.has(p.file));
+ $("selected-count").textContent=chosen.length+"개 선택됨";
+ $("select-visible").checked=false;
+ $("bulk-trash").disabled=!chosen.some(p=>p.status!=="trash");
+ $("bulk-restore").disabled=!chosen.some(p=>p.status==="trash");
+ $("bulk-category").disabled=!chosen.length;
+}
 function renderPosts(){
  const root=$("post-list");root.replaceChildren();
- const query=$("post-search").value.trim().toLowerCase();
- const state=$("status-filter").value;
- const shown=allPosts.filter(p=>(activeCategory==="all"||p.category===activeCategory)&&(state==="all"||p.status===state)&&(!query||[p.title,p.file,p.date,categoryName(p.category)].join(" ").toLowerCase().includes(query)));
+ const shown=shownPosts(),pages=Math.max(1,Math.ceil(shown.length/PAGE_SIZE));
+ postPage=Math.min(postPage,pages);
  $("filtered-count").textContent=shown.length+"개";
- if(!shown.length){const p=document.createElement("p");p.className="empty-post-list";p.textContent=allPosts.length?"조건에 해당하는 글이 없습니다.":"아직 작성된 글이 없습니다.";root.appendChild(p);return;}
- for(const p of shown){
+ if(!shown.length){
+   const p=document.createElement("p");p.className="empty-post-list";
+   p.textContent=allPosts.length?"조건에 해당하는 글이 없습니다.":"아직 작성된 글이 없습니다.";
+   root.appendChild(p);
+ }
+ for(const p of shown.slice((postPage-1)*PAGE_SIZE,postPage*PAGE_SIZE)){
    const item=document.createElement("article");item.className="post-list-item";
+   const head=document.createElement("div");head.className="post-item-head";
+   const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.className="post-select-checkbox";checkbox.checked=selectedPosts.has(p.file);
+   checkbox.setAttribute("aria-label",(p.title||p.file)+" 선택");
+   checkbox.onchange=()=>{checkbox.checked?selectedPosts.add(p.file):selectedPosts.delete(p.file);refreshBulkControls();};
    const title=document.createElement("strong");title.className="post-list-name";title.textContent=p.title||p.file;title.title=p.title||p.file;
+   head.append(checkbox,title);
    const meta=document.createElement("div");meta.className="post-list-meta";
-   const status=document.createElement("span");status.className=p.status==="published"?"status-live":"status-draft";status.textContent=p.status==="published"?"공개":p.status==="draft"?"임시저장":"상태 확인 필요";
+   const status=document.createElement("span");status.className=p.status==="published"?"status-live":"status-draft";
+   status.textContent=p.status==="published"?"공개":p.status==="draft"?"임시저장":p.status==="trash"?"휴지통":"상태 확인 필요";
    const category=document.createElement("span");category.textContent=categoryName(p.category);
    const date=document.createElement("span");date.textContent=p.date||"";
    meta.append(status,category,date);
    const actions=document.createElement("div");actions.className="post-list-actions";
-   const edit=document.createElement("button");edit.type="button";edit.className="post-list-edit";edit.textContent="✎ 수정";edit.onclick=()=>openPost(p.file);
-   const remove=document.createElement("button");remove.type="button";remove.className="post-list-delete";remove.textContent="삭제";remove.onclick=()=>deletePost(p.file,p.sha,p.title||p.file);
-   actions.append(edit,remove);item.append(title,meta,actions);root.appendChild(item);
+   if(p.status!=="trash"){
+     const edit=document.createElement("button");edit.type="button";edit.className="post-list-edit";edit.textContent="✎ 수정";edit.onclick=()=>openPost(p.file);
+     const remove=document.createElement("button");remove.type="button";remove.className="post-list-delete";remove.textContent="휴지통";remove.onclick=()=>bulkAction("trash",[p]);
+     actions.append(edit,remove);
+   }else{
+     const restore=document.createElement("button");restore.type="button";restore.className="post-list-edit";restore.textContent="↶ 복원";restore.onclick=()=>bulkAction("restore",[p]);
+     actions.append(restore);
+     if(p.deleted_at){
+       const due=document.createElement("span");due.className="trash-due";
+       const remaining=Math.max(0,Math.ceil((new Date(p.deleted_at).getTime()+72*3600000-Date.now())/3600000));
+       due.textContent="최대 "+remaining+"시간 후 영구 삭제 대상";
+       meta.append(due);
+     }
+   }
+   item.append(head,meta,actions);root.appendChild(item);
  }
+ const nav=$("post-pages");nav.replaceChildren();
+ const prev=document.createElement("button");prev.type="button";prev.className="quiet";prev.textContent="이전";prev.disabled=postPage<=1;prev.onclick=()=>{postPage--;renderPosts()};
+ const middle=document.createElement("span");middle.textContent=postPage+" / "+pages;
+ const next=document.createElement("button");next.type="button";next.className="quiet";next.textContent="다음";next.disabled=postPage>=pages;next.onclick=()=>{postPage++;renderPosts()};
+ nav.append(prev,middle,next);
+ refreshBulkControls();
 }
 async function list(force=false){
  const root=$("post-list");root.textContent="글 목록 불러오는 중...";
  try{
    const d=await api("posts"+(force?"?refresh=1":""));
    allPosts=d.posts||[];
+   selectedPosts.clear();
    renderCategories();renderPosts();
  }catch(e){root.textContent="글 목록을 불러오지 못했습니다: "+e.message;throw e;}
 }
-$("post-search").addEventListener("input",renderPosts);
-$("status-filter").addEventListener("change",renderPosts);
+$("post-search").addEventListener("input",()=>{postPage=1;selectedPosts.clear();renderPosts()});
+$("status-filter").addEventListener("change",()=>{postPage=1;selectedPosts.clear();renderPosts()});
 $("refresh-posts").addEventListener("click",()=>list(true).catch(err=>alert(err.message)));
-async function deletePost(file,sha,title){
- if(!file||!sha)return alert("글 정보가 올바르지 않습니다. 목록을 다시 불러와 주세요.");
- if(!confirm("다음 글을 삭제하시겠습니까?\n\n"+title+"\n\n삭제하면 홈페이지에서 글이 내려갑니다."))return;
- if(prompt("최종 확인: '삭제'라고 입력해 주세요.")!=="삭제")return;
- $("message").textContent="삭제 중...";
+$("select-visible").addEventListener("change",e=>{
+ for(const p of shownPosts().slice((postPage-1)*PAGE_SIZE,postPage*PAGE_SIZE)){
+   if(e.target.checked)selectedPosts.add(p.file);else selectedPosts.delete(p.file);
+ }
+ renderPosts();
+});
+async function bulkAction(action,custom=null){
+ const selected=custom||allPosts.filter(p=>selectedPosts.has(p.file));
+ const target=selected.filter(p=>action==="restore"?p.status==="trash":action==="trash"?p.status!=="trash":true);
+ if(!target.length)return alert("처리할 글을 선택하세요.");
+ if(target.length>30)return alert("한 번에 최대 30개 글을 선택할 수 있습니다.");
+ const label=action==="trash"?"휴지통으로 이동":action==="restore"?"복원":"카테고리 변경";
+ if(!confirm(target.length+"개 글을 "+label+"하시겠습니까?"+(action==="trash"?"\\n3일간 복원할 수 있으며, 이후 자동 삭제됩니다.":"")))return;
+ let category=null;
+ if(action==="category"){category=$("bulk-category-target").value;if(!category)return alert("변경할 카테고리를 선택하세요.");}
+ const buttons=[$("bulk-trash"),$("bulk-restore"),$("bulk-category")];
+ buttons.forEach(b=>b.disabled=true);
+ $("message").textContent=label+" 진행 중...";
  try{
-   await api("post",{method:"DELETE",body:JSON.stringify({file,sha})});
-   if(editFile===file)reset();
+   const result=await api("posts/bulk",{method:"POST",body:JSON.stringify({action,category,items:target.map(p=>({file:p.file,sha:p.sha}))})});
    await list(true);
-   $("message").textContent="글 삭제 완료! 홈페이지 자동 배포가 시작됩니다.";
- }catch(err){$("message").textContent="삭제 실패: "+err.message;alert("삭제 실패: "+err.message);}
+   $("message").textContent=label+" "+(result.success||0)+"건 완료"+(result.failed?" / 실패 "+result.failed+"건":"")+". 홈페이지 배포 후 반영됩니다.";
+   if(result.failed)alert((result.results||[]).filter(x=>!x.ok).slice(0,5).map(x=>x.file+": "+x.error).join("\\n"));
+ }catch(err){$("message").textContent=label+" 실패: "+err.message;alert(err.message);}
+ finally{refreshBulkControls();}
+}
+$("bulk-trash").onclick=()=>bulkAction("trash");
+$("bulk-restore").onclick=()=>bulkAction("restore");
+$("bulk-category").onclick=()=>bulkAction("category");
+async function deletePost(file,sha,title){
+ const p=allPosts.find(x=>x.file===file)||{file,sha,title,status:"published"};
+ await bulkAction("trash",[p]);
 }
 async function openPost(file){
  try{
