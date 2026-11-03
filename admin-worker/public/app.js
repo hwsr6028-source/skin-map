@@ -102,27 +102,27 @@ function reset(){
  $("post-form").reset();$("status").value="published";$("seo_approved").checked=true;$("date").value=new Date().toISOString().slice(0,10);
  $("editor-title").textContent="새 글 작성";$("message").textContent="";$("upload-result").textContent="";preview();updateBodyLivePreview();
 }
-$("new-post").addEventListener("click",()=>{reset();if(activeCategory!=="all")$("category").value=activeCategory;$("editor-title").scrollIntoView({behavior:"smooth",block:"start"});});
+$("new-post").addEventListener("click",()=>{reset();if(activeCategory!=="all"&&activeCategory!=="trash")$("category").value=activeCategory;$("editor-title").scrollIntoView({behavior:"smooth",block:"start"});});
 function renderCategories(){
  const stats=$("category-stats");stats.replaceChildren();
  const counts={};
  for(const p of allPosts.filter(p=>p.status==="published")){const k=p.category||"general";counts[k]=(counts[k]||0)+1;}
- const options=[["all","전체 공개 글"],...categories];
+ const options=[["all","전체 공개 글"],...categories,["trash","휴지통"]];
  for(const [key,label] of options){
    const button=document.createElement("button");button.type="button";
    button.className="category-stat"+(activeCategory===key?" selected":"");
    button.setAttribute("aria-pressed",String(activeCategory===key));
    const name=document.createElement("span");name.className="category-stat-label";name.textContent=label;
    const num=document.createElement("strong");num.className="category-stat-count";
-   num.textContent=String(key==="all"?allPosts.filter(p=>p.status==="published").length:counts[key]||0);
+   num.textContent=String(key==="trash"?allPosts.filter(p=>p.status==="trash").length:key==="all"?allPosts.filter(p=>p.status==="published").length:counts[key]||0);
    button.append(name,num);
-   button.onclick=()=>{activeCategory=key;postPage=1;selectedPosts.clear();renderCategories();renderPosts();};
+   button.onclick=()=>{activeCategory=key;$("status-filter").value=key==="trash"?"trash":"all";postPage=1;selectedPosts.clear();renderCategories();renderPosts();};
    stats.appendChild(button);
  }
 }
 function shownPosts(){
  const query=$("post-search").value.trim().toLowerCase(),state=$("status-filter").value;
- return allPosts.filter(p=>(activeCategory==="all"||p.category===activeCategory)&&(state==="all"||p.status===state)&&(!query||[p.title,p.file,p.date,categoryName(p.category)].join(" ").toLowerCase().includes(query)));
+ return allPosts.filter(p=>(activeCategory==="trash"?p.status==="trash":(activeCategory==="all"||p.category===activeCategory))&&(state==="all"||p.status===state)&&(!query||[p.title,p.file,p.date,categoryName(p.category)].join(" ").toLowerCase().includes(query)));
 }
 function refreshBulkControls(){
  const chosen=allPosts.filter(p=>selectedPosts.has(p.file));
