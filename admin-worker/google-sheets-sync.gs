@@ -65,6 +65,8 @@ function syncSheetDrafts() {
         props.deleteProperty(prefix);
         props.deleteProperty(prefix + ':event');
         props.deleteProperty(prefix + ':revision');
+    if(source.bookId===INFO_WORLD.SPREADSHEET_ID)
+      props.deleteProperty('imported:' + source.gid + ':' + row);
         log.skipped++;
         continue;
       }
@@ -75,6 +77,13 @@ function syncSheetDrafts() {
       const fingerprint = Utilities.base64EncodeWebSafe(
         Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, keyword + '\\n' + content)
       ).replace(/=+$/, '').slice(0, 30);
+      // Migrate prior row fingerprints without republishing unchanged posts.
+      const legacy='imported:' + source.gid + ':' + row;
+      if (!props.getProperty(prefix) &&
+          source.bookId===INFO_WORLD.SPREADSHEET_ID &&
+          props.getProperty(legacy)===fingerprint) {
+        props.setProperty(prefix,fingerprint);
+      }
       if (props.getProperty(prefix) === fingerprint) {
         log.skipped++;
         continue;
@@ -143,6 +152,8 @@ function resetDraftImportOnEdit(e) {
     props.deleteProperty(prefix);
     props.deleteProperty(prefix+':event');
     props.deleteProperty(prefix+':revision');
+    if(source.bookId===INFO_WORLD.SPREADSHEET_ID)
+      props.deleteProperty('imported:' + source.gid + ':' + row);
   }
 }
 function installDraftSyncTrigger() {
@@ -172,6 +183,8 @@ function resetDraftImportRows() {
     props.deleteProperty(prefix);
     props.deleteProperty(prefix+':event');
     props.deleteProperty(prefix+':revision');
+    if(source.bookId===INFO_WORLD.SPREADSHEET_ID)
+      props.deleteProperty('imported:' + source.gid + ':' + row);
   }
   console.log('선택한 '+(end-start+1)+'개 행의 등록 기록을 초기화했습니다. 다시 동기화하면 새 글로 등록합니다.');
 }
