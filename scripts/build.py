@@ -268,7 +268,7 @@ def seo_preview_png(post):
             from PIL import Image, ImageDraw, ImageFont
         except Exception as exc:
             print('Title PNG unavailable: Pillow not installed:',exc)
-            return title_cover_svg(post)
+            raise RuntimeError('SEO PNG 생성 실패: Pillow 설치 필요') from exc
 
     def find_font():
         for candidate in [
@@ -297,7 +297,7 @@ def seo_preview_png(post):
     global _seo_title_font
     if '_seo_title_font' not in globals():_seo_title_font=find_font()
     if not _seo_title_font:
-        return title_cover_svg(post)
+        raise RuntimeError('SEO PNG 생성 실패: 한글 글꼴이 없습니다')
     font_path=_seo_title_font
     title=str(post.get('title') or post.get('keyword') or '생활 정보 가이드').strip()
     category=CATEGORIES[category_of(post)]
@@ -478,18 +478,8 @@ for article in posts:
     og_image=seo_image
     # Use the actual selected thumbnail in card, article and og:image.
     # If no image was uploaded, use the generated fallback preview.
-    cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 대표 이미지" width="640" height="360" decoding="async"></figure>'
-    # Keep the legacy advertising CTA in the body for articles with no
-    # uploaded thumbnail, without incorrectly promoting it to the cover.
-    if not uploaded_cover:
-        cover_html+='<figure class="article-cover inquiry-banner"><img src="'+esc(DEFAULT_INQUIRY_BANNER)+'" alt="정보세상 광고 상담 안내" width="1200" height="675" decoding="async" loading="lazy"></figure>'
-    # Search engines can read article metadata directly from server-rendered HTML.
-    article_schema={'@context':'https://schema.org','@type':'BlogPosting','headline':str(title),'description':str(desc),'mainEntityOfPage':DOMAIN+path,'image':[DOMAIN+seo_image if seo_image.startswith('/') else seo_image],'publisher':{'@type':'Organization','name':'정보세상','url':DOMAIN+'/'} }
-    published_at=str(article.get('date') or article.get('created_at') or '')[:10]
-    modified_at=str(article.get('updated_at') or article.get('imported_at') or published_at)[:10]
-    if re.fullmatch(r'\d{4}-\d{2}-\d{2}',published_at):article_schema['datePublished']=published_at
-    if re.fullmatch(r'\d{4}-\d{2}-\d{2}',modified_at):article_schema['dateModified']=modified_at
-    page+='<script type="application/ld+json">'+json.dumps(article_schema,ensure_ascii=False).replace('<','\\u003c')+'</script>'
+    cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 대표 이미지" wid    # Avoid duplicated site-wide advertisement graphics near the representative image.
+e_ascii=False).replace('<','\\u003c')+'</script>'
     # Article-level HTML links expose additional pages to search crawlers.
     related=[p for p in posts if p['slug']!=article['slug'] and category_of(p)==category_of(article)]
     related.sort(key=lambda p:str(p.get('imported_at') or p.get('updated_at') or p.get('date') or ''),reverse=True)
