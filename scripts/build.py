@@ -246,56 +246,22 @@ def auto_cover(post):
 # standard library (no Pillow/CLI dependency in Cloudflare Pages build).
 # The existing SVG inquiry banner remains unchanged in the article.
 def seo_preview_png(post):
-    """Generate a clean title-based PNG shared by cards, article and OG metadata.
+    """Rasterize the approved inquiry design and paint Korean with a real font.
 
-    All articles have a unique stable filename derived from slug, title, category.
-    Uploaded representative images take precedence and don't require generation.
-    Pillow and a Korean font are resolved lazily so normal build stays fast.
+    CairoSVG on Cloudflare sometimes substitutes missing Korean glyphs with
+    tofu boxes. SVG text must NOT be rasterized with CairoSVG: instead render
+    its artwork without text and then paint every label with Pillow.
     """
     if image_url(post.get('thumbnail','')):
         return image_url(post.get('thumbnail',''))
     import io, re, subprocess, sys, urllib.request
     from pathlib import Path
+    from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+    import cairosvg
     digest=hashlib.sha256((str(post['slug'])+'|'+str(post.get('title',''))+'|'+category_of(post)).encode('utf8')).hexdigest()
     folder=OUT/'assets'/'seo-covers'
     folder.mkdir(parents=True,exist_ok=True)
     dest=folder/(digest[:24]+'.png')
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-    except ImportError:
-        try:
-            subprocess.run([sys.executable,'-m','pip','install','--quiet','Pillow>=10,<13'],check=True,timeout=110)
-            from PIL import Image, ImageDraw, ImageFont
-        except Exception as exc:
-            print('Title PNG unavailable: Pillow not installed:',exc)
-            raise RuntimeError('SEO PNG 생성 실패: Pillow 설치 필요') from exc
-
-    # Keep the approved consultation banner design, producing a real PNG
-    # for each article with barely perceptible, deterministic tonal changes.
-    # These changes are design variations, not a promise of Naver uniqueness.
-    global _seo_inquiry_base
-    if '_seo_inquiry_base' not in globals():
-        banner=ROOT/'assets'/'uploads'/'default-inquiry-banner.svg'
-        if not banner.is_file():
-            raise RuntimeError('기본 상담 배너가 없습니다: '+str(banner))
-        try:
-            import cairosvg
-        except ImportError:
-            subprocess.run([sys.executable,'-m','pip','install','--quiet','CairoSVG>=2.7,<3'],check=True,timeout=110)
-            import cairosvg
-        raster=cairosvg.svg2png(url=str(banner),output_width=960,output_height=540)
-        _seo_inquiry_base=Image.open(io.BytesIO(raster)).convert('RGB')
-    from PIL import ImageEnhance
-    # Maximum 1.2% brightness and 1.6% saturation shifts.
-    # Never alter copy, telephone digits, crop, or layout.
-    seed=int(digest[:12],16)
-    brightness=1.0+((seed%241)-120)/10000.0
-    saturation=1.0+(((seed//241)%321)-160)/10000.0
-    im=ImageEnhance.Brightness(_seo_inquiry_base).enhance(brightness)
-    im=ImageEnhance.Color(im).enhance(saturation)
-    im.save(dest,format='PNG',optimize=True,compress_level=6)
-    return '/assets/seo-covers/'+dest.name
-
     def find_font():
         for candidate in [
             '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
@@ -325,84 +291,34 @@ def seo_preview_png(post):
     if not _seo_title_font:
         raise RuntimeError('SEO PNG 생성 실패: 한글 글꼴이 없습니다')
     font_path=_seo_title_font
-    title=str(post.get('title') or post.get('keyword') or '생활 정보 가이드').strip()
-    category=CATEGORIES[category_of(post)]
-    palettes={
-        'health':('#edf5f0','#183d32','#53927c'),
-        'fortune':('#f5eef6','#4d3563','#9876ae'),
-        'tattoo':('#edf0f3','#293742','#8194a0'),
-        'law':('#eef2f9','#233d60','#7390b5'),
-        'interior':('#f8f1eb','#5c4033','#b58870'),
-        'moving':('#edf5f7','#27576b','#7cacc1'),
-        'realestate':('#f1f5ed','#385841','#819c71'),
-        'finance':('#edf8f3','#185947','#66a58c'),
-        'tech':('#eef2fa','#314f80','#8296c1'),
-        'education':('#eef7f7','#245b61','#73a6a6'),
-        'travel':('#eef7fa','#245f7d','#7fb0c7'),
-        'shopping':('#faf2eb','#7d4d2a','#c39b76'),
-        'supplements':('#eff7ed','#3a674a','#88a88c'),
-        'general':('#eff5f1','#22483b','#79a08d'),
-    }
-    bg,ink,accent=palettes.get(category_of(post),palettes['general'])
-    w,h=960,540
-    im=Image.new('RGB',(w,h),bg)
-    draw=ImageDraw.Draw(im)
-    font_label=ImageFont.truetype(font_path,27)
-    font_brand=ImageFont.truetype(font_path,25)
-    max_width=w-150
-    # Wrap by measured pixel width so long Korean strings never overflow.
-    def lines_for(font):
-        words=re.findall(r'\S+\s*',title)
-        chunks=[]
-        current=''
-        for word in words:
-            word=word.strip()
-            attempt=(current+' '+word).strip()
-            if draw.textbbox((0,0),attempt,font=font)[2]<=max_width:
-                current=attempt
-                continue
-            if current:
-                chunks.append(current)
-                current=''
-            # Split long unbroken tokens by individual Korean characters.
-            for ch in word:
-                attempt=current+ch
-                if current and draw.textbbox((0,0),attempt,font=font)[2]>max_width:
-                    chunks.append(current);current=ch
-                else:current=attempt
-        if current:chunks.append(current)
-        return chunks
-    size=63
-    font=ImageFont.truetype(font_path,size)
-    lines=lines_for(font)
-    while len(lines)>3 and size>38:
-        size-=2
-        font=ImageFont.truetype(font_path,size)
-        lines=lines_for(font)
-    if len(lines)>3:
-        lines=lines[:3]
-        while lines[2] and draw.textbbox((0,0),lines[2]+'…',font=font)[2]>max_width:
-            lines[2]=lines[2][:-1]
-        lines[2]+='…'
-    # Editorial styling: simple, high contrast, generous breathing room.
-    draw.rounded_rectangle((59,53,260,104),radius=25,fill='#ffffff')
-    draw.text((83,60),category,font=font_label,fill=ink)
-    top=171 if len(lines)==1 else 146 if len(lines)==2 else 126
-    line_height=size+23
-    for i,line in enumerate(lines):
-        draw.text((69,top+i*line_height),line,font=font,fill=ink,stroke_width=0)
-    draw.line((67,450,w-67,450),fill=accent,width=2)
-    draw.text((69,473),'정보세상',font=font_brand,fill=ink)
-    # A small right-aligned series mark distinguishes categories without clutter.
-    draw.ellipse((874,475,890,491),fill=accent)
+    global _seo_inquiry_base
+    if '_seo_inquiry_base' not in globals():
+        banner=ROOT/'assets'/'uploads'/'default-inquiry-banner.svg'
+        if not banner.is_file():
+            raise RuntimeError('기본 상담 배너가 없습니다: '+str(banner))
+        svg=banner.read_text(encoding='utf-8')
+        # Remove all SVG text so the font resolver cannot output empty boxes.
+        svg=re.sub(r'<text\\b[^>]*>.*?</text>', '', svg, flags=re.S)
+        raster=cairosvg.svg2png(bytestring=svg.encode('utf-8'),output_width=960,output_height=540)
+        base=Image.open(io.BytesIO(raster)).convert('RGB')
+        draw=ImageDraw.Draw(base)
+        def paint(text,xy,size,color,anchor='ls'):
+            font=ImageFont.truetype(font_path,size)
+            draw.text(xy,text,font=font,fill=color,anchor=anchor)
+        # Coordinates correspond exactly to the approved 1200 x 675 SVG,
+        # resized to the 960 x 540 PNG. Fonts are fully rasterized in PNG.
+        paint('상위노출 문의',(52,135),64,'#122f24')
+        paint('010-8253-6028',(189,274),74,'#ffffff')
+        for cx,label in [(150,'블로그'),(362,'홈페이지'),(572,'카페'),(784,'플레이스')]:
+            paint(label,(cx,398),27,'#214b35','ms')
+        paint('빠른 상담 가능',(480,494),32,'#ffffff','ms')
+        _seo_inquiry_base=base
+    seed=int(digest[:12],16)
+    brightness=1.0+((seed%241)-120)/10000.0
+    saturation=1.0+(((seed//241)%321)-160)/10000.0
+    im=ImageEnhance.Brightness(_seo_inquiry_base).enhance(brightness)
+    im=ImageEnhance.Color(im).enhance(saturation)
     im.save(dest,format='PNG',optimize=True,compress_level=6)
-    if dest.stat().st_size<5000:
-        # Add subtle content-derived pixels to avoid a file below Naver's 5KB guideline.
-        for y in range(445,454):
-            for x in range(68,895):
-                if (x*17+y*13+int(digest[(x+y)%32],16))%11==0:
-                    im.putpixel((x,y),(max(0,int(ink[1:3],16)-3),max(0,int(ink[3:5],16)-2),max(0,int(ink[5:7],16)-3)))
-        im.save(dest,format='PNG',compress_level=1)
     return '/assets/seo-covers/'+dest.name
 
 def title_cover_svg(post):
