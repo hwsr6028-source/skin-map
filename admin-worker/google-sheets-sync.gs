@@ -14,6 +14,29 @@ const INFO_WORLD = Object.freeze({
   API: 'https://info-world-admin.hwsr6028.workers.dev/api/sheet-import',
   MAX_PER_RUN: 10
 });
+// Bound spreadsheet is preferred, including when the file was copied.
+// Never silently sync unrelated tabs: match the configured gid, then the
+// column headers B9/C9 used by the viral-content automation sheet.
+function draftSource_() {
+  const book = SpreadsheetApp.getActiveSpreadsheet() ||
+               SpreadsheetApp.openById(INFO_WORLD.SPREADSHEET_ID);
+  let sheet = String(book.getId()) === INFO_WORLD.SPREADSHEET_ID
+    ? book.getSheetById(INFO_WORLD.SHEET_GID) : null;
+  if (!sheet) {
+    const candidates=book.getSheets().filter(tab=>{
+      const b=String(tab.getRange('B9').getDisplayValue()||'').replace(/\\s+/g,'');
+      const c=String(tab.getRange('C9').getDisplayValue()||'').replace(/\\s+/g,'');
+      return b.includes('키워드') && (c.includes('원고')||c.includes('본문'));
+    });
+    if (candidates.length!==1)
+      throw new Error('원고 탭을 찾지 못했습니다. B9 키워드 / C9 원고생성 헤더를 확인하세요.');
+    sheet=candidates[0];
+  }
+  return {book,sheet,gid:sheet.getSheetId(),bookId:String(book.getId())};
+}
+function importPropPrefix_(source,row){
+  return 'imported:' + source.bookId + ':' + source.gid + ':' + row;
+}
 
 function syncSheetDrafts() {
   const lock = LockService.getScriptLock();
@@ -21,8 +44,8 @@ function syncSheetDrafts() {
   try {
     const key = PropertiesService.getScriptProperties().getProperty('SHEET_IMPORT_KEY');
     if (!key || key.length < 24) throw new Error('스크립트 속성 SHEET_IMPORT_KEY를 먼저 등록하세요.');
-    const sheet = SpreadsheetApp.openById(INFO_WORLD.SPREADSHEET_ID).getSheetById(INFO_WORLD.SHEET_GID);
-    if (!sheet) throw new Error('지정한 탭(gid)을 찾을 수 없습니다.');
+    const source=draftSource_();
+    const sheet=source.sheet;
     const last = sheet.getLastRow();
     if (last < INFO_WORLD.START_ROW) return {created: 0, exists: 0, skipped: 0, failed: 0};
     const values = sheet.getRange(INFO_WORLD.START_ROW, 2, last - INFO_WORLD.START_ROW + 1, 3).getDisplayValues();
@@ -35,7 +58,7 @@ function syncSheetDrafts() {
       const content = String(contentRaw || '').trim();
       const state = String(stateRaw || '').trim();
       const row = INFO_WORLD.START_ROW + i;
-      const prefix = 'imported:' + INFO_WORLD.SHEET_GID + ':' + row;
+      const prefix = importPropPrefix_(source,row);
       // Clearing B/C (or the entire row) resets its previous import state,
       // including while no finished draft is present.
       if (!keyword || !content) {
@@ -75,7 +98,8 @@ function syncSheetDrafts() {
           contentType: 'application/json',
           headers: {'X-Import-Key': key},
           payload: JSON.stringify({
-            sheetId: String(INFO_WORLD.SHEET_GID),
+            sheetId: String(source.gid),
+            spreadsheetId: source.bookId,
             row,
             keyword,
             content,
@@ -107,18 +131,18 @@ function syncSheetDrafts() {
 // is not distinguishable without a source-side submission ID.
 function resetDraftImportOnEdit(e) {
   if (!e || !e.range) return;
-  const sheet = e.range.getSheet();
-  if (String(sheet.getParent().getId()) !== INFO_WORLD.SPREADSHEET_ID ||
-      sheet.getSheetId() !== INFO_WORLD.SHEET_GID) return;
-  const range = e.range;
+  const source=draftSource_();
+  const range=e.range;
+  if (range.getSheet().getSheetId()!==source.gid ||
+      String(range.getSheet().getParent().getId())!==source.bookId) return;
   if (range.getLastRow() < INFO_WORLD.START_ROW ||
       range.getLastColumn() < 2 || range.getColumn() > 3) return;
-  const props = PropertiesService.getScriptProperties();
-  for (let row = Math.max(INFO_WORLD.START_ROW, range.getRow()); row <= range.getLastRow(); row++) {
-    const prefix = 'imported:' + INFO_WORLD.SHEET_GID + ':' + row;
+  const props=PropertiesService.getScriptProperties();
+  for(let row=Math.max(INFO_WORLD.START_ROW,range.getRow());row<=range.getLastRow();row++){
+    const prefix=importPropPrefix_(source,row);
     props.deleteProperty(prefix);
-    props.deleteProperty(prefix + ':event');
-    props.deleteProperty(prefix + ':revision');
+    props.deleteProperty(prefix+':event');
+    props.deleteProperty(prefix+':revision');
   }
 }
 function installDraftSyncTrigger() {
@@ -127,34 +151,29 @@ function installDraftSyncTrigger() {
     .filter(t => handlers.includes(t.getHandlerFunction()))
     .forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('syncSheetDrafts').timeBased().everyMinutes(5).create();
-  const book = SpreadsheetApp.openById(INFO_WORLD.SPREADSHEET_ID);
-  ScriptApp.newTrigger('resetDraftImportOnEdit').forSpreadsheet(book).onEdit().create();
+  const source=draftSource_();
+  ScriptApp.newTrigger('resetDraftImportOnEdit').forSpreadsheet(source.book).onEdit().create();
   console.log('5분 자동 동기화 및 B/C열 수정 시 재등록 상태 초기화 설정 완료.');
 }
 // Run manually for selected rows when another script rewrites the exact same
 // keyword/text without triggering onEdit (Google does not emit edit events for
 // programmatic changes). Select only rows intended to be re-published.
 function resetDraftImportRows() {
-  const sheet = SpreadsheetApp.openById(INFO_WORLD.SPREADSHEET_ID).getSheetById(INFO_WORLD.SHEET_GID);
-  const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (!active || String(active.getId()) !== INFO_WORLD.SPREADSHEET_ID) {
-    throw new Error('연동된 원본 시트에서 다시 게시할 행을 선택해 주세요.');
-  }
-  const selected = active.getActiveRange();
-  if (!selected || selected.getSheet().getSheetId() !== INFO_WORLD.SHEET_GID) {
-    throw new Error('연동된 탭에서 행을 선택해 주세요.');
-  }
-  const props = PropertiesService.getScriptProperties();
-  const start = Math.max(INFO_WORLD.START_ROW, selected.getRow());
-  const end = selected.getLastRow();
-  if (end < start) throw new Error('10행 이후의 다시 게시할 행을 선택해 주세요.');
-  for (let row=start; row<=end; row++) {
-    const prefix='imported:' + INFO_WORLD.SHEET_GID + ':' + row;
+  const source=draftSource_();
+  const selected=source.book.getActiveRange();
+  if(!selected||selected.getSheet().getSheetId()!==source.gid)
+    throw new Error('원고 탭에서 다시 게시할 행을 선택해 주세요.');
+  const start=Math.max(INFO_WORLD.START_ROW,selected.getRow());
+  const end=selected.getLastRow();
+  if(end<start)throw new Error('10행 이후의 다시 게시할 행을 선택해 주세요.');
+  const props=PropertiesService.getScriptProperties();
+  for(let row=start;row<=end;row++){
+    const prefix=importPropPrefix_(source,row);
     props.deleteProperty(prefix);
-    props.deleteProperty(prefix + ':event');
-    props.deleteProperty(prefix + ':revision');
+    props.deleteProperty(prefix+':event');
+    props.deleteProperty(prefix+':revision');
   }
-  console.log('선택한 '+(end-start+1)+'개 행의 등록 기록을 초기화했습니다. syncSheetDrafts 실행 시 새 게시글로 등록합니다.');
+  console.log('선택한 '+(end-start+1)+'개 행의 등록 기록을 초기화했습니다. 다시 동기화하면 새 글로 등록합니다.');
 }
 function stopDraftSyncTrigger() {
   ScriptApp.getProjectTriggers()
