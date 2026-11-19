@@ -256,17 +256,22 @@ def seo_preview_png(post):
         return image_url(post.get('thumbnail',''))
     # Approved advertising artwork: original uploaded PNG, unchanged.
     # An explicit per-post thumbnail continues to take priority.
-    approved=ROOT/'assets'/'uploads'/'default-ad-thumbnail.webp'
-    if approved.is_file():
-        from PIL import Image
-        folder=OUT/'assets'/'seo-covers'
-        folder.mkdir(parents=True,exist_ok=True)
-        target=folder/'default-ad-thumbnail.png'
+    # Use the original uploaded PNG byte-for-byte whenever available.
+    approved_png=ROOT/'assets'/'uploads'/'default-ad-thumbnail.png'
+    approved_webp=ROOT/'assets'/'uploads'/'default-ad-thumbnail.webp'
+    folder=OUT/'assets'/'seo-covers'
+    folder.mkdir(parents=True,exist_ok=True)
+    target=folder/'default-ad-thumbnail.png'
+    if approved_png.is_file():
         if not target.exists():
-            # Publish a real PNG, readable directly by Naver's image crawler.
-            # The default banner is a compressed copy of the supplied artwork.
-            with Image.open(approved) as artwork:
-                artwork.convert('RGB').resize((960,960),Image.Resampling.LANCZOS).save(target,format='PNG',optimize=True)
+            shutil.copyfile(approved_png,target)
+        return '/assets/seo-covers/default-ad-thumbnail.png'
+    if approved_webp.is_file():
+        # Backward-compatible fallback until the original PNG is uploaded.
+        from PIL import Image
+        if not target.exists():
+            with Image.open(approved_webp) as artwork:
+                artwork.convert('RGB').save(target,format='PNG')
         return '/assets/seo-covers/default-ad-thumbnail.png'
     import io, re, subprocess, sys, urllib.request
     from pathlib import Path
