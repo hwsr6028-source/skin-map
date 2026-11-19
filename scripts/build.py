@@ -254,6 +254,16 @@ def seo_preview_png(post):
     """
     if image_url(post.get('thumbnail','')):
         return image_url(post.get('thumbnail',''))
+    # Approved advertising artwork: original uploaded PNG, unchanged.
+    # An explicit per-post thumbnail continues to take priority.
+    approved=ROOT/'assets'/'uploads'/'default-ad-thumbnail.png'
+    if approved.is_file():
+        folder=OUT/'assets'/'seo-covers'
+        folder.mkdir(parents=True,exist_ok=True)
+        target=folder/'default-ad-thumbnail.png'
+        if not target.exists():
+            shutil.copyfile(approved,target)
+        return '/assets/seo-covers/default-ad-thumbnail.png'
     import io, re, subprocess, sys, urllib.request
     from pathlib import Path
     from PIL import Image, ImageDraw, ImageFont, ImageEnhance
@@ -420,7 +430,8 @@ for article in posts:
     og_image=seo_image
     # Use the actual selected thumbnail in card, article and og:image.
     # If no image was uploaded, use the generated fallback preview.
-    cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 대표 이미지" width="960" height="540" decoding="async" fetchpriority="high"></figure>'
+    cover_dimensions='width="960" height="960"' if seo_image.endswith('/default-ad-thumbnail.png') else 'width="960" height="540"'
+    cover_html='<figure class="article-cover"><img src="'+esc(seo_image)+'" alt="'+esc(title)+' 대표 이미지" '+cover_dimensions+' decoding="async" fetchpriority="high"></figure>'
     # Search engines can read article metadata directly from server-rendered HTML.
     article_schema={'@context':'https://schema.org','@type':'BlogPosting','headline':str(title),'description':str(desc),'mainEntityOfPage':DOMAIN+path,'image':[DOMAIN+seo_image if seo_image.startswith('/') else seo_image],'publisher':{'@type':'Organization','name':'정보세상','url':DOMAIN+'/'} }
     published_at=str(article.get('date') or article.get('created_at') or '')[:10]
